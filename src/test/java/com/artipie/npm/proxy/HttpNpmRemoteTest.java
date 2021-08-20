@@ -4,15 +4,14 @@
  */
 package com.artipie.npm.proxy;
 
-import com.amihaiemil.eoyaml.Yaml;
-import com.amihaiemil.eoyaml.YamlMapping;
 import com.artipie.asto.ext.PublisherAs;
+import com.artipie.npm.RandomFreePort;
 import com.artipie.npm.proxy.model.NpmAsset;
 import com.artipie.npm.proxy.model.NpmPackage;
 import io.vertx.reactivex.core.Vertx;
 import io.vertx.reactivex.core.http.HttpServer;
 import java.io.IOException;
-import java.net.ServerSocket;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,7 +23,6 @@ import org.hamcrest.core.IsEqual;
 import org.json.JSONException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
@@ -36,6 +34,11 @@ import org.skyscreamer.jsonassert.JSONAssert;
  */
 @SuppressWarnings({"PMD.AvoidDuplicateLiterals", "PMD.TooManyMethods"})
 public final class HttpNpmRemoteTest {
+    /**
+     * Vertx.
+     */
+    private static final Vertx VERTX = Vertx.vertx();
+
     /**
      * Last modified date for both package and asset.
      */
@@ -50,11 +53,6 @@ public final class HttpNpmRemoteTest {
      * Assert content.
      */
     private static final String DEF_CONTENT = "foobar";
-
-    /**
-     * Vertx instance.
-     */
-    private static Vertx vertx;
 
     /**
      * NPM Remote client instance.
@@ -174,17 +172,12 @@ public final class HttpNpmRemoteTest {
 
     @BeforeEach
     void setUp() throws IOException, InterruptedException {
-        final int port = this.rndPort();
+        final int port = new RandomFreePort().value();
         this.server = HttpNpmRemoteTest.prepareServer(port);
-        final YamlMapping yaml = Yaml.createYamlMappingBuilder()
-            .add(
-                "remote",
-                Yaml.createYamlMappingBuilder().add(
-                    "url",
-                        String.format("http://localhost:%d", port)
-                ).build()
-            ).build();
-        this.remote = new HttpNpmRemote(new NpmProxyConfig(yaml), HttpNpmRemoteTest.vertx);
+        this.remote = new HttpNpmRemote(
+            URI.create(String.format("http://localhost:%d", port)),
+            HttpNpmRemoteTest.VERTX
+        );
     }
 
     @AfterEach
@@ -193,20 +186,9 @@ public final class HttpNpmRemoteTest {
         this.server.close();
     }
 
-    @BeforeAll
-    static void prepare() {
-        HttpNpmRemoteTest.vertx = Vertx.vertx();
-    }
-
     @AfterAll
     static void cleanup() {
-        HttpNpmRemoteTest.vertx.close();
-    }
-
-    private int rndPort() throws IOException {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        }
+        HttpNpmRemoteTest.VERTX.close();
     }
 
     private static HttpServer prepareServer(final int port)
@@ -216,7 +198,7 @@ public final class HttpNpmRemoteTest {
             StandardCharsets.UTF_8
         );
         final CountDownLatch latch = new CountDownLatch(1);
-        final HttpServer server = vertx.createHttpServer().requestHandler(
+        final HttpServer server = HttpNpmRemoteTest.VERTX.createHttpServer().requestHandler(
             req -> {
                 if (req.path().equalsIgnoreCase("/asdas")) {
                     req.response()

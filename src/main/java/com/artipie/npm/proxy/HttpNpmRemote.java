@@ -15,6 +15,7 @@ import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.reactivex.core.Vertx;
 import io.vertx.reactivex.ext.web.client.WebClient;
 import io.vertx.reactivex.ext.web.codec.BodyCodec;
+import java.net.URI;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 
@@ -34,7 +35,7 @@ public final class HttpNpmRemote implements NpmRemote {
     /**
      * NPM Proxy config.
      */
-    private final NpmProxyConfig config;
+    private final URI remote;
 
     /**
      * The Vertx instance.
@@ -43,20 +44,19 @@ public final class HttpNpmRemote implements NpmRemote {
 
     /**
      * Ctor.
-     * @param config Npm Proxy config
+     * @param remote Uri remote
      * @param vertx The Vertx instance
      */
-    HttpNpmRemote(final NpmProxyConfig config, final Vertx vertx) {
-        this.config = config;
+    HttpNpmRemote(final URI remote, final Vertx vertx) {
+        this.remote = remote;
         this.vertx = vertx;
-        this.client = WebClient.create(vertx, this.defaultWebClientOptions());
+        this.client = WebClient.create(vertx, HttpNpmRemote.defaultWebClientOptions());
     }
 
     @Override
     //@checkstyle ReturnCountCheck (40 lines)
     public Maybe<NpmPackage> loadPackage(final String name) {
-        return this.client.getAbs(String.format("%s/%s", this.config.url(), name))
-            .timeout(this.config.requestTimeout())
+        return this.client.getAbs(String.format("%s/%s", this.remote.toString(), name))
             .rxSend()
             .flatMapMaybe(
                 response -> {
@@ -100,7 +100,7 @@ public final class HttpNpmRemote implements NpmRemote {
         ).flatMapMaybe(
             asyncfile ->
                 this.client.getAbs(
-                    String.format("%s/%s", this.config.url(), path)
+                    String.format("%s/%s", this.remote.toString(), path)
                 ).as(
                     BodyCodec.pipe(asyncfile)
                 ).rxSend().flatMapMaybe(
@@ -146,11 +146,10 @@ public final class HttpNpmRemote implements NpmRemote {
      * Build default Web Client options.
      * @return Default Web Client options
      */
-    private WebClientOptions defaultWebClientOptions() {
+    private static WebClientOptions defaultWebClientOptions() {
         final WebClientOptions options = new WebClientOptions();
         options.setKeepAlive(true);
         options.setUserAgent("Artipie");
-        options.setConnectTimeout(this.config.connectTimeout());
         return options;
     }
 }

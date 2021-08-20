@@ -4,8 +4,6 @@
  */
 package com.artipie.npm.proxy.http;
 
-import com.amihaiemil.eoyaml.Yaml;
-import com.amihaiemil.eoyaml.YamlMapping;
 import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
@@ -14,18 +12,17 @@ import com.artipie.asto.test.TestResource;
 import com.artipie.npm.TgzArchive;
 import com.artipie.npm.misc.NextSafeAvailablePort;
 import com.artipie.npm.proxy.NpmProxy;
-import com.artipie.npm.proxy.NpmProxyConfig;
 import com.artipie.vertx.VertxSliceServer;
 import io.vertx.reactivex.core.Vertx;
 import io.vertx.reactivex.ext.web.client.WebClient;
-import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutionException;
 import javax.json.Json;
 import javax.json.JsonObject;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -37,11 +34,10 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 @SuppressWarnings({"PMD.AvoidUsingHardCodedIP", "PMD.AvoidDuplicateLiterals"})
 final class DownloadAssetSliceTest {
-
     /**
      * Vertx.
      */
-    private Vertx vertx;
+    private static final Vertx VERTX = Vertx.vertx();
 
     /**
      * NPM Proxy.
@@ -59,25 +55,22 @@ final class DownloadAssetSliceTest {
     private String tgzpath;
 
     @BeforeEach
-    void setUp() throws InterruptedException, ExecutionException, IOException {
-        this.vertx = Vertx.vertx();
+    void setUp() throws InterruptedException, ExecutionException {
         final Storage storage = new InMemoryStorage();
         this.tgzpath =
             "@hello/simple-npm-project/-/@hello/simple-npm-project-1.0.1.tgz";
         this.saveFilesToStorage(storage);
         this.port = new NextSafeAvailablePort().value();
-        final YamlMapping yaml = Yaml.createYamlMappingBuilder()
-            .add(
-                "remote",
-                Yaml.createYamlMappingBuilder()
-                    .add(
-                        "url",
-                        String.format("http://127.0.0.1:%d", this.port)
-                    )
-                    .build()
-            ).build();
-        final  NpmProxyConfig config = new NpmProxyConfig(yaml);
-        this.npm = new NpmProxy(config, this.vertx, storage);
+        this.npm = new NpmProxy(
+            URI.create(String.format("http://127.0.0.1:%d", this.port)),
+            DownloadAssetSliceTest.VERTX,
+            storage
+        );
+    }
+
+    @AfterAll
+    static void tearDown() {
+        DownloadAssetSliceTest.VERTX.close();
     }
 
     @ParameterizedTest
@@ -88,7 +81,7 @@ final class DownloadAssetSliceTest {
         );
         try (
             VertxSliceServer server = new VertxSliceServer(
-                this.vertx,
+                DownloadAssetSliceTest.VERTX,
                 new DownloadAssetSlice(this.npm, path),
                 this.port
             )
@@ -100,7 +93,7 @@ final class DownloadAssetSliceTest {
                 pathprefix,
                 this.tgzpath
             );
-            final WebClient client = WebClient.create(this.vertx);
+            final WebClient client = WebClient.create(DownloadAssetSliceTest.VERTX);
             final String tgzcontent =
                 client.getAbs(url).rxSend().blockingGet()
                 .bodyAsString(StandardCharsets.ISO_8859_1.name());
@@ -119,11 +112,6 @@ final class DownloadAssetSliceTest {
                 new IsEqual<>("1.0.1")
             );
         }
-    }
-
-    @AfterEach
-    void tearDown() {
-        this.vertx.close();
     }
 
     /**

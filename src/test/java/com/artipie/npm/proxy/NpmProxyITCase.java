@@ -4,15 +4,13 @@
  */
 package com.artipie.npm.proxy;
 
-import com.amihaiemil.eoyaml.Yaml;
-import com.amihaiemil.eoyaml.YamlMapping;
-import com.artipie.asto.Storage;
 import com.artipie.asto.memory.InMemoryStorage;
+import com.artipie.npm.RandomFreePort;
 import com.artipie.npm.proxy.http.NpmProxySlice;
 import com.artipie.vertx.VertxSliceServer;
 import io.vertx.reactivex.core.Vertx;
 import java.io.IOException;
-import java.net.ServerSocket;
+import java.net.URI;
 import java.util.Arrays;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.AllOf;
@@ -39,7 +37,7 @@ import org.testcontainers.containers.GenericContainer;
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
 @org.testcontainers.junit.jupiter.Testcontainers
 public final class NpmProxyITCase {
-    /**x
+    /**
      * Vertx instance.
      */
     private static final Vertx VERTX = Vertx.vertx();
@@ -145,19 +143,10 @@ public final class NpmProxyITCase {
     void setUp() {
         final String address = this.verdaccio.getContainerIpAddress();
         final Integer port = this.verdaccio.getFirstMappedPort();
-        final Storage storage = new InMemoryStorage();
-        final YamlMapping yaml = Yaml.createYamlMappingBuilder()
-            .add(
-                "remote",
-                Yaml.createYamlMappingBuilder().add(
-                    "url",
-                    String.format("http://%s:%d", address, port)
-                ).build()
-            ).build();
         final NpmProxy npm = new NpmProxy(
-            new NpmProxyConfig(yaml),
+            URI.create(String.format("http://%s:%d", address, port)),
             NpmProxyITCase.VERTX,
-            storage
+            new InMemoryStorage()
         );
         final NpmProxySlice slice = new NpmProxySlice("npm-proxy", npm);
         this.srv = new VertxSliceServer(NpmProxyITCase.VERTX, slice, NpmProxyITCase.listenPort);
@@ -170,12 +159,8 @@ public final class NpmProxyITCase {
     }
 
     @BeforeAll
-    static void prepare() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            NpmProxyITCase.listenPort = socket.getLocalPort();
-        } catch (final IOException ex) {
-            throw new IllegalStateException(ex);
-        }
+    static void prepare() throws IOException {
+        NpmProxyITCase.listenPort = new RandomFreePort().value();
         Testcontainers.exposeHostPorts(NpmProxyITCase.listenPort);
     }
 

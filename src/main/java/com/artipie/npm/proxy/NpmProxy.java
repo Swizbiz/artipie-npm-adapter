@@ -11,9 +11,8 @@ import com.artipie.npm.proxy.model.NpmPackage;
 import io.reactivex.Maybe;
 import io.vertx.reactivex.core.Vertx;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Paths;
-import java.time.Duration;
-import java.time.OffsetDateTime;
 
 /**
  * NPM Proxy.
@@ -21,11 +20,6 @@ import java.time.OffsetDateTime;
  * @checkstyle ClassDataAbstractionCouplingCheck (200 lines)
  */
 public class NpmProxy {
-    /**
-     * NPM Proxy config.
-     */
-    private final NpmProxyConfig config;
-
     /**
      * The Vertx instance.
      */
@@ -43,32 +37,29 @@ public class NpmProxy {
 
     /**
      * Ctor.
-     * @param config NPM Proxy configuration
+     * @param remote Uri remote
      * @param vertx Vertx instance
      * @param storage Adapter storage
      */
-    public NpmProxy(final NpmProxyConfig config, final Vertx vertx, final Storage storage) {
+    public NpmProxy(final URI remote, final Vertx vertx, final Storage storage) {
         this(
-            config,
             vertx,
             new RxNpmProxyStorage(new RxStorageWrapper(storage)),
-            new HttpNpmRemote(config, vertx)
+            new HttpNpmRemote(remote, vertx)
         );
     }
 
     /**
      * Default-scoped ctor (for tests).
-     * @param config NPM Proxy configuration
      * @param vertx Vertx instance
      * @param storage NPM storage
      * @param remote Remote repository client
      * @checkstyle ParameterNumberCheck (10 lines)
      */
-    NpmProxy(final NpmProxyConfig config,
+    NpmProxy(
         final Vertx vertx,
         final NpmProxyStorage storage,
         final NpmRemote remote) {
-        this.config = config;
         this.vertx = vertx;
         this.storage = storage;
         this.remote = remote;
@@ -82,14 +73,7 @@ public class NpmProxy {
      */
     public Maybe<NpmPackage> getPackage(final String name) {
         return this.storage.getPackage(name).flatMap(
-            pkg -> {
-                if (Duration.between(pkg.meta().lastRefreshed(), OffsetDateTime.now())
-                    .compareTo(this.config.metadataTtl()) > 0) {
-                    return this.remotePackage(name).switchIfEmpty(Maybe.just(pkg));
-                } else {
-                    return Maybe.just(pkg);
-                }
-            }
+            pkg -> this.remotePackage(name).switchIfEmpty(Maybe.just(pkg))
         ).switchIfEmpty(Maybe.defer(() -> this.remotePackage(name)));
     }
 
@@ -127,8 +111,15 @@ public class NpmProxy {
      * @return Npm Package
      */
     private Maybe<NpmPackage> remotePackage(final String name) {
-        return this.remote.loadPackage(name).flatMap(
-            pkg -> this.storage.save(pkg).andThen(Maybe.just(pkg))
-        );
+        final Maybe<NpmPackage> res;
+        final Maybe<NpmPackage> pckg = this.remote.loadPackage(name);
+        if (pckg == null) {
+            res = Maybe.empty();
+        } else {
+            res = pckg.flatMap(
+                pkg -> this.storage.save(pkg).andThen(Maybe.just(pkg))
+            );
+        }
+        return res;
     }
 }

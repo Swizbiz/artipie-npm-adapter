@@ -4,8 +4,6 @@
  */
 package com.artipie.npm.proxy;
 
-import com.amihaiemil.eoyaml.Yaml;
-import com.amihaiemil.eoyaml.YamlMapping;
 import com.artipie.asto.Content;
 import com.artipie.npm.proxy.model.NpmAsset;
 import com.artipie.npm.proxy.model.NpmPackage;
@@ -21,7 +19,6 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsSame;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -42,6 +39,11 @@ import org.mockito.stubbing.Answer;
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
 public final class NpmProxyTest {
     /**
+     * Vertx instance.
+     */
+    private static final Vertx VERTX = Vertx.vertx();
+
+    /**
      * Last modified date for both package and asset.
      */
     private static final String LAST_MODIFIED = "Tue, 24 Mar 2020 12:15:16 GMT";
@@ -55,11 +57,6 @@ public final class NpmProxyTest {
      * Assert content.
      */
     private static final String DEF_CONTENT = "foobar";
-
-    /**
-     * The Vertx instance.
-     */
-    private static Vertx vertx;
 
     /**
      * NPM Proxy instance.
@@ -182,12 +179,8 @@ public final class NpmProxyTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        final YamlMapping yaml = Yaml.createYamlMappingBuilder()
-            .add("metadata-ttl-minutes", "60")
-            .build();
         this.npm = new NpmProxy(
-            new NpmProxyConfig(yaml),
-            NpmProxyTest.vertx,
+            NpmProxyTest.VERTX,
             this.storage,
             this.remote
         );
@@ -200,14 +193,9 @@ public final class NpmProxyTest {
         Mockito.verify(this.remote).close();
     }
 
-    @BeforeAll
-    static void prepare() {
-        NpmProxyTest.vertx = Vertx.vertx();
-    }
-
     @AfterAll
     static void cleanup() {
-        NpmProxyTest.vertx.close();
+        NpmProxyTest.VERTX.close();
     }
 
     private static NpmPackage defaultPackage(final OffsetDateTime refreshed) throws IOException {
