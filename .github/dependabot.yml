@@ -10,9 +10,9 @@ updates:
     labels:
       - "dependencies"
       - "bot"
+    commit-message:
+      prefix: "deps"
     assignees:
-      - "genryxy"
-    reviewers:
       - "genryxy"
     schedule:
       interval: "daily"
