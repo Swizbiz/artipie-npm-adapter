@@ -4,13 +4,13 @@
  */
 package com.artipie.npm.proxy.json;
 
-import com.jayway.jsonpath.DocumentContext;
-import com.jayway.jsonpath.JsonPath;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import net.minidev.json.JSONArray;
-import org.apache.commons.io.IOUtils;
+import com.artipie.asto.test.TestResource;
+import java.io.StringReader;
+import java.util.Set;
+import javax.json.Json;
+import javax.json.JsonObject;
 import org.hamcrest.MatcherAssert;
+import org.hamcrest.core.IsEqual;
 import org.hamcrest.core.StringStartsWith;
 import org.junit.jupiter.api.Test;
 
@@ -19,21 +19,27 @@ import org.junit.jupiter.api.Test;
  *
  * @since 0.1
  */
+@SuppressWarnings("PMD.AvoidDuplicateLiterals")
 public class ClientContentTest {
     @Test
-    public void getsValue() throws IOException {
-        final String cached = IOUtils.resourceToString(
-            "/json/cached.json",
-            StandardCharsets.UTF_8
+    public void getsValue() {
+        final String url = "http://localhost";
+        final String cached = new String(
+            new TestResource("json/cached.json").asBytes()
         );
-        final String transformed = new ClientContent(cached, "http://localhost").value();
-        final DocumentContext json = JsonPath.parse(transformed);
-        final JSONArray refs = json.read("$.versions.[*].dist.tarball", JSONArray.class);
-        MatcherAssert.assertThat("Could not find asset references", refs.size() > 0);
-        for (final Object ref: refs) {
+        final String transformed = new ClientContent(cached, url).value();
+        final JsonObject json = Json.createReader(new StringReader(transformed)).readObject();
+        final Set<String> vrsns = json.getJsonObject("versions").keySet();
+        MatcherAssert.assertThat(
+            "Could not find asset references",
+            vrsns.isEmpty(),
+            new IsEqual<>(false)
+        );
+        for (final String vers: vrsns) {
             MatcherAssert.assertThat(
-                (String) ref,
-                new StringStartsWith("http://localhost/")
+                json.getJsonObject("versions").getJsonObject(vers)
+                    .getJsonObject("dist").getString("tarball"),
+                new StringStartsWith(url)
             );
         }
     }

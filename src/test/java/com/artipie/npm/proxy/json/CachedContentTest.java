@@ -4,11 +4,11 @@
  */
 package com.artipie.npm.proxy.json;
 
-import com.jayway.jsonpath.DocumentContext;
-import com.jayway.jsonpath.JsonPath;
+import com.artipie.asto.test.TestResource;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import org.apache.commons.io.IOUtils;
+import java.io.StringReader;
+import javax.json.Json;
+import javax.json.JsonObject;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
 import org.junit.jupiter.api.Test;
@@ -21,14 +21,14 @@ import org.junit.jupiter.api.Test;
 public class CachedContentTest {
     @Test
     public void getsValue() throws IOException {
-        final String original = IOUtils.resourceToString(
-            "/json/original.json",
-            StandardCharsets.UTF_8
+        final String original = new String(
+            new TestResource("json/original.json").asBytes()
         );
         final String transformed = new CachedContent(original, "asdas").value();
-        final DocumentContext json = JsonPath.parse(transformed);
+        final JsonObject json = Json.createReader(new StringReader(transformed)).readObject();
         MatcherAssert.assertThat(
-            json.read("$.versions.['1.0.0'].dist.tarball", String.class),
+            json.getJsonObject("versions").getJsonObject("1.0.0")
+                .getJsonObject("dist").getString("tarball"),
             new IsEqual<>("/asdas/-/asdas-1.0.0.tgz")
         );
     }
