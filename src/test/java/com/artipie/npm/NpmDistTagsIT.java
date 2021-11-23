@@ -17,7 +17,6 @@ import io.vertx.reactivex.core.Vertx;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.Arrays;
-import org.cactoos.list.ListOf;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsNot;
 import org.hamcrest.core.StringContains;
@@ -135,7 +134,7 @@ public final class NpmDistTagsIT {
             "Meta file was updated",
             new PublisherAs(this.storage.value(meta).join()).asciiString()
                 .toCompletableFuture().join(),
-            new StringContainsInOrder(new ListOf<>(tag, ver))
+            new StringContainsInOrder(Arrays.asList(tag, ver))
         );
     }
 
@@ -156,7 +155,7 @@ public final class NpmDistTagsIT {
             "Meta file was updated",
             new PublisherAs(this.storage.value(meta).join()).asciiString()
                 .toCompletableFuture().join(),
-            new IsNot<>(new StringContainsInOrder(new ListOf<>(tag, "1.0.0")))
+            new IsNot<>(new StringContainsInOrder(Arrays.asList(tag, "1.0.0")))
         );
     }
 

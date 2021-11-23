@@ -8,12 +8,12 @@ import com.artipie.npm.misc.DateTimeNowStr;
 import com.artipie.npm.misc.JsonFromPublisher;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
 import javax.json.Json;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
 import javax.json.JsonValue;
-import org.cactoos.set.SetOf;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.AllOf;
@@ -154,7 +154,7 @@ public final class MetaTest {
                 .toCompletableFuture().join()
                 .getJsonObject(MetaTest.DISTTAGS)
                 .keySet(),
-            new IsEqual<>(new SetOf<>(MetaTest.LATEST))
+            new IsEqual<>(Collections.singleton(MetaTest.LATEST))
         );
     }
 

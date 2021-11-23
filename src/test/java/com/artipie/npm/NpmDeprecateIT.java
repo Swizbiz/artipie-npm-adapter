@@ -16,7 +16,7 @@ import com.jcabi.log.Logger;
 import io.vertx.reactivex.core.Vertx;
 import java.net.URL;
 import java.nio.file.Path;
-import org.cactoos.list.ListOf;
+import java.util.Arrays;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
 import org.hamcrest.text.StringContainsInOrder;
@@ -135,7 +135,7 @@ public final class NpmDeprecateIT {
         MatcherAssert.assertThat(
             this.exec("npm", "install", pkg, "--registry", this.url).getStderr(),
             new StringContainsInOrder(
-                new ListOf<>(
+                Arrays.asList(
                     "WARN", "deprecated", "@hello/simple-npm-project@1.0.1: Danger! Do not use!"
                 )
             )
@@ -160,7 +160,7 @@ public final class NpmDeprecateIT {
             "Deprecation warn was shown",
             res.getStderr(),
             new StringContainsInOrder(
-                new ListOf<>(
+                Arrays.asList(
                     "WARN", "deprecated", "@hello/simple-npm-project@1.0.1: Danger! Do not use!"
                 )
             )
@@ -169,7 +169,7 @@ public final class NpmDeprecateIT {
             "Package was installed",
             res.getStdout(),
             new StringContainsInOrder(
-                new ListOf<>(
+                Arrays.asList(
                     "+ project-with-simple-dependency@1.0.0", "added 2 packages"
                 )
             )

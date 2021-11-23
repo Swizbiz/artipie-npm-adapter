@@ -5,23 +5,21 @@
 package com.artipie.npm.proxy.http;
 
 import com.artipie.asto.Content;
+import com.artipie.http.Headers;
 import com.artipie.http.Response;
 import com.artipie.http.Slice;
 import com.artipie.http.async.AsyncResponse;
 import com.artipie.http.rq.RequestLineFrom;
+import com.artipie.http.rs.RsFull;
 import com.artipie.http.rs.RsStatus;
-import com.artipie.http.rs.RsWithBody;
-import com.artipie.http.rs.RsWithHeaders;
-import com.artipie.http.rs.RsWithStatus;
 import com.artipie.npm.proxy.NpmProxy;
 import com.artipie.npm.proxy.json.ClientContent;
 import hu.akarnokd.rxjava2.interop.SingleInterop;
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
 import java.util.Map;
 import java.util.stream.StreamSupport;
 import org.apache.commons.lang3.StringUtils;
-import org.cactoos.list.ListOf;
-import org.cactoos.map.MapEntry;
 import org.reactivestreams.Publisher;
 
 /**
@@ -60,16 +58,16 @@ public final class DownloadPackageSlice implements Slice {
         return new AsyncResponse(
             this.npm.getPackage(this.path.value(new RequestLineFrom(line).uri().getPath()))
                 .map(
-                    pkg -> (Response) new RsWithHeaders(
-                        new RsWithBody(
-                            new RsWithStatus(RsStatus.OK),
-                            new Content.From(
-                                this.clientFormat(pkg.content(), headers).getBytes()
+                    pkg -> (Response) new RsFull(
+                        RsStatus.OK,
+                        new Headers.From(
+                            new AbstractMap.SimpleEntry<>("Content-Type", "application/json"),
+                            new AbstractMap.SimpleEntry<>(
+                                "Last-Modified", pkg.meta().lastModified()
                             )
                         ),
-                        new ListOf<Map.Entry<String, String>>(
-                            new MapEntry<>("Content-Type", "application/json"),
-                            new MapEntry<>("Last-Modified", pkg.meta().lastModified())
+                        new Content.From(
+                            this.clientFormat(pkg.content(), headers).getBytes()
                         )
                     )
                 ).toSingle(new RsNotFound())

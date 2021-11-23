@@ -17,10 +17,10 @@ import com.artipie.npm.PackageNameFromUrl;
 import com.artipie.npm.Tarballs;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import org.cactoos.iterable.IterableOf;
-import org.cactoos.map.MapEntry;
 import org.reactivestreams.Publisher;
 
 /**
@@ -69,8 +69,8 @@ public final class DownloadPackageSlice implements Slice {
                             .thenApply(
                                 content -> new RsFull(
                                     RsStatus.OK,
-                                    new IterableOf<Map.Entry<String, String>>(
-                                        new MapEntry<>(
+                                    Collections.singletonList(
+                                        new AbstractMap.SimpleEntry<>(
                                             "Content-Type", "application/json"
                                         )
                                     ),
