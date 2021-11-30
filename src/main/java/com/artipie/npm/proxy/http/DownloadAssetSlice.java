@@ -9,14 +9,16 @@ import com.artipie.http.Headers;
 import com.artipie.http.Response;
 import com.artipie.http.Slice;
 import com.artipie.http.async.AsyncResponse;
+import com.artipie.http.headers.Header;
 import com.artipie.http.rq.RequestLineFrom;
 import com.artipie.http.rs.RsFull;
 import com.artipie.http.rs.RsStatus;
+import com.artipie.npm.misc.DateTimeNowStr;
 import com.artipie.npm.proxy.NpmProxy;
 import hu.akarnokd.rxjava2.interop.SingleInterop;
 import java.nio.ByteBuffer;
-import java.util.AbstractMap;
 import java.util.Map;
+import java.util.Optional;
 import org.reactivestreams.Publisher;
 
 /**
@@ -56,11 +58,20 @@ public final class DownloadAssetSlice implements Slice {
                     asset -> (Response) new RsFull(
                         RsStatus.OK,
                         new Headers.From(
-                            new AbstractMap.SimpleEntry<>(
-                                "Content-Type", asset.meta().contentType()
+                            new Header(
+                                "Content-Type",
+                                Optional.ofNullable(
+                                    asset.meta().contentType()
+                                ).orElseThrow(
+                                    () -> new IllegalStateException(
+                                        "Failed to get 'Content-Type'"
+                                    )
+                                )
                             ),
-                            new AbstractMap.SimpleEntry<>(
-                                "Last-Modified", asset.meta().lastModified()
+                            new Header(
+                                "Last-Modified", Optional.ofNullable(
+                                    asset.meta().lastModified()
+                                ).orElse(new DateTimeNowStr().value())
                             )
                         ),
                         new Content.From(

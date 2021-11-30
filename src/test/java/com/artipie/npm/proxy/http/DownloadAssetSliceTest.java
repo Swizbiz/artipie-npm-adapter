@@ -94,13 +94,12 @@ final class DownloadAssetSliceTest {
                 this.tgzpath
             );
             final WebClient client = WebClient.create(DownloadAssetSliceTest.VERTX);
-            final String tgzcontent =
-                client.getAbs(url).rxSend().blockingGet()
+            final String tgzcontent = client.getAbs(url)
+                .rxSend().blockingGet()
                 .bodyAsString(StandardCharsets.ISO_8859_1.name());
-            final JsonObject json =
-                new TgzArchive(tgzcontent, false)
-                    .packageJson()
-                    .blockingGet();
+            final JsonObject json = new TgzArchive(tgzcontent, false)
+                .packageJson()
+                .blockingGet();
             MatcherAssert.assertThat(
                 "Name is parsed properly from package.json",
                 json.getJsonString("name").getString(),

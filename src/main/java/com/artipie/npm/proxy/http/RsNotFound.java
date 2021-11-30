@@ -8,8 +8,8 @@ import com.artipie.asto.Content;
 import com.artipie.http.Connection;
 import com.artipie.http.Headers;
 import com.artipie.http.Response;
+import com.artipie.http.headers.Header;
 import com.artipie.http.rs.RsStatus;
-import java.util.AbstractMap;
 import java.util.concurrent.CompletionStage;
 
 /**
@@ -22,7 +22,7 @@ public final class RsNotFound implements Response {
         return connection.accept(
             RsStatus.NOT_FOUND,
             new Headers.From(
-                new AbstractMap.SimpleEntry<>("Content-Type", "application/json")
+                new Header("Content-Type", "application/json")
             ),
             new Content.From("{\"error\" : \"not found\"}".getBytes())
         );

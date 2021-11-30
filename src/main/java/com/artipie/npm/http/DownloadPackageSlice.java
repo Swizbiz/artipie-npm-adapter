@@ -7,9 +7,11 @@ package com.artipie.npm.http;
 
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
+import com.artipie.http.Headers;
 import com.artipie.http.Response;
 import com.artipie.http.Slice;
 import com.artipie.http.async.AsyncResponse;
+import com.artipie.http.headers.Header;
 import com.artipie.http.rs.RsFull;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.RsWithStatus;
@@ -17,8 +19,6 @@ import com.artipie.npm.PackageNameFromUrl;
 import com.artipie.npm.Tarballs;
 import java.net.URL;
 import java.nio.ByteBuffer;
-import java.util.AbstractMap;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.reactivestreams.Publisher;
@@ -69,10 +69,8 @@ public final class DownloadPackageSlice implements Slice {
                             .thenApply(
                                 content -> new RsFull(
                                     RsStatus.OK,
-                                    Collections.singletonList(
-                                        new AbstractMap.SimpleEntry<>(
-                                            "Content-Type", "application/json"
-                                        )
+                                    new Headers.From(
+                                        new Header("Content-Type", "application/json")
                                     ),
                                     content
                             )

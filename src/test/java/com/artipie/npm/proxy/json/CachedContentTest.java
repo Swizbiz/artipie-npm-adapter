@@ -5,9 +5,6 @@
 package com.artipie.npm.proxy.json;
 
 import com.artipie.asto.test.TestResource;
-import java.io.IOException;
-import java.io.StringReader;
-import javax.json.Json;
 import javax.json.JsonObject;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
@@ -20,12 +17,11 @@ import org.junit.jupiter.api.Test;
  */
 public class CachedContentTest {
     @Test
-    public void getsValue() throws IOException {
+    public void getsValue() {
         final String original = new String(
             new TestResource("json/original.json").asBytes()
         );
-        final String transformed = new CachedContent(original, "asdas").value();
-        final JsonObject json = Json.createReader(new StringReader(transformed)).readObject();
+        final JsonObject json = new CachedContent(original, "asdas").value();
         MatcherAssert.assertThat(
             json.getJsonObject("versions").getJsonObject("1.0.0")
                 .getJsonObject("dist").getString("tarball"),

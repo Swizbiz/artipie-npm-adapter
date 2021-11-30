@@ -34,7 +34,7 @@ public abstract class TransformedContent {
      * Returns transformed package content as String.
      * @return Transformed package content
      */
-    public String value() {
+    public JsonObject value() {
         return this.transformAssetRefs();
     }
 
@@ -49,7 +49,7 @@ public abstract class TransformedContent {
      * Transforms package JSON.
      * @return Transformed JSON
      */
-    private String transformAssetRefs() {
+    private JsonObject transformAssetRefs() {
         final JsonObject json = Json.createReader(new StringReader(this.data)).readObject();
         final JsonValue node = json.get("versions");
         final JsonPatchBuilder patch = Json.createPatchBuilder();
@@ -64,6 +64,6 @@ public abstract class TransformedContent {
                 patch.replace(path, this.transformRef(asset));
             }
         }
-        return patch.build().apply(json).toString();
+        return patch.build().apply(json);
     }
 }

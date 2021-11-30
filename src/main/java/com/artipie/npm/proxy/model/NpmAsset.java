@@ -6,6 +6,7 @@ package com.artipie.npm.proxy.model;
 
 import io.vertx.core.json.JsonObject;
 import java.nio.ByteBuffer;
+import java.util.Optional;
 import org.reactivestreams.Publisher;
 
 /**
@@ -103,7 +104,11 @@ public final class NpmAsset {
          * @param json JSON representation of metadata
          */
         public Metadata(final JsonObject json) {
-            this(json.getString("last-modified"), json.getString("content-type"));
+            this(
+                json.getString("last-modified"),
+                Optional.ofNullable(json.getString("content-type"))
+                    .orElse("application/octet-stream")
+            );
         }
 
         /**

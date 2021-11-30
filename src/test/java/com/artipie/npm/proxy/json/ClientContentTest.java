@@ -5,9 +5,7 @@
 package com.artipie.npm.proxy.json;
 
 import com.artipie.asto.test.TestResource;
-import java.io.StringReader;
 import java.util.Set;
-import javax.json.Json;
 import javax.json.JsonObject;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
@@ -27,8 +25,7 @@ public class ClientContentTest {
         final String cached = new String(
             new TestResource("json/cached.json").asBytes()
         );
-        final String transformed = new ClientContent(cached, url).value();
-        final JsonObject json = Json.createReader(new StringReader(transformed)).readObject();
+        final JsonObject json = new ClientContent(cached, url).value();
         final Set<String> vrsns = json.getJsonObject("versions").keySet();
         MatcherAssert.assertThat(
             "Could not find asset references",
