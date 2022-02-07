@@ -4,25 +4,29 @@
  */
 package com.artipie.npm.proxy;
 
+import com.artipie.asto.Content;
 import com.artipie.asto.ext.PublisherAs;
-import com.artipie.npm.RandomFreePort;
+import com.artipie.asto.test.TestResource;
+import com.artipie.http.Headers;
+import com.artipie.http.Response;
+import com.artipie.http.Slice;
+import com.artipie.http.rq.RequestLineFrom;
+import com.artipie.http.rs.RsFull;
+import com.artipie.http.rs.RsStatus;
+import com.artipie.npm.proxy.http.RsNotFound;
 import com.artipie.npm.proxy.model.NpmAsset;
 import com.artipie.npm.proxy.model.NpmPackage;
-import io.vertx.reactivex.core.Vertx;
-import io.vertx.reactivex.core.http.HttpServer;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.concurrent.CountDownLatch;
+import org.apache.commons.collections4.keyvalue.UnmodifiableMapEntry;
 import org.apache.commons.io.IOUtils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
 import org.json.JSONException;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
@@ -34,10 +38,6 @@ import org.skyscreamer.jsonassert.JSONAssert;
  */
 @SuppressWarnings({"PMD.AvoidDuplicateLiterals", "PMD.TooManyMethods"})
 public final class HttpNpmRemoteTest {
-    /**
-     * Vertx.
-     */
-    private static final Vertx VERTX = Vertx.vertx();
 
     /**
      * Last modified date for both package and asset.
@@ -58,11 +58,6 @@ public final class HttpNpmRemoteTest {
      * NPM Remote client instance.
      */
     private HttpNpmRemote remote;
-
-    /**
-     * Http Server instance.
-     */
-    private HttpServer server;
 
     @Test
     public void loadsPackage() throws IOException, JSONException {
@@ -150,78 +145,38 @@ public final class HttpNpmRemoteTest {
         }
     }
 
-    @Test
-    public void failsToLoadPackage() throws InterruptedException {
-        this.stopServer();
-        final Boolean empty = this.remote.loadPackage("asdas").isEmpty().blockingGet();
-        MatcherAssert.assertThat("Unexpected package found", empty);
-    }
-
-    @Test
-    public void failsToLoadAsset() throws InterruptedException, IOException {
-        this.stopServer();
-        final Path tmp = Files.createTempFile("npm-asset-", "tmp");
-        try {
-            final Boolean empty = this.remote.loadAsset("asdas/-/asdas-1.0.0.tgz", tmp)
-                .isEmpty().blockingGet();
-            MatcherAssert.assertThat("Unexpected asset found", empty);
-        } finally {
-            Files.delete(tmp);
-        }
-    }
-
     @BeforeEach
-    void setUp() throws IOException, InterruptedException {
-        final int port = new RandomFreePort().value();
-        this.server = HttpNpmRemoteTest.prepareServer(port);
+    void setUp() {
         this.remote = new HttpNpmRemote(
-            URI.create(String.format("http://localhost:%d", port)),
-            HttpNpmRemoteTest.VERTX
+            URI.create("http://localhost:8080"),
+            this.prepareClientSlice()
         );
     }
 
-    @AfterEach
-    void tearDown() {
-        this.remote.close();
-        this.server.close();
-    }
-
-    @AfterAll
-    static void cleanup() {
-        HttpNpmRemoteTest.VERTX.close();
-    }
-
-    private static HttpServer prepareServer(final int port)
-        throws IOException, InterruptedException {
-        final String original = IOUtils.resourceToString(
-            "/json/original.json",
-            StandardCharsets.UTF_8
-        );
-        final CountDownLatch latch = new CountDownLatch(1);
-        final HttpServer server = HttpNpmRemoteTest.VERTX.createHttpServer().requestHandler(
-            req -> {
-                if (req.path().equalsIgnoreCase("/asdas")) {
-                    req.response()
-                        .putHeader("Last-Modified", HttpNpmRemoteTest.LAST_MODIFIED)
-                        .end(original);
-                } else if (req.path().equalsIgnoreCase("/asdas/-/asdas-1.0.0.tgz")) {
-                    req.response()
-                        .putHeader("Last-Modified", HttpNpmRemoteTest.LAST_MODIFIED)
-                        .putHeader("Content-Type", HttpNpmRemoteTest.DEF_CONTENT_TYPE)
-                        .end(HttpNpmRemoteTest.DEF_CONTENT);
-                } else {
-                    // @checkstyle MagicNumberCheck (1 line)
-                    req.response().setStatusCode(404).end();
-                }
+    private Slice prepareClientSlice() {
+        return (line, headers, body) -> {
+            final Response res;
+            final String path = new RequestLineFrom(line).uri().getPath();
+            if (path.equalsIgnoreCase("/asdas")) {
+                res = new RsFull(
+                    RsStatus.OK,
+                    new Headers.From("Last-Modified", HttpNpmRemoteTest.LAST_MODIFIED),
+                    new Content.From(new TestResource("json/original.json").asBytes())
+                );
+            } else if (path.equalsIgnoreCase("/asdas/-/asdas-1.0.0.tgz")) {
+                res = new RsFull(
+                    RsStatus.OK,
+                    new Headers.From(
+                        // @checkstyle LineLengthCheck (2 lines)
+                        new UnmodifiableMapEntry<>("Last-Modified", HttpNpmRemoteTest.LAST_MODIFIED),
+                        new UnmodifiableMapEntry<>("Content-Type", HttpNpmRemoteTest.DEF_CONTENT_TYPE)
+                    ),
+                    new Content.From(HttpNpmRemoteTest.DEF_CONTENT.getBytes(StandardCharsets.UTF_8))
+                );
+            } else {
+                res = new RsNotFound();
             }
-        ).listen(port, unused -> latch.countDown());
-        latch.await();
-        return server;
-    }
-
-    private void stopServer() throws InterruptedException {
-        final CountDownLatch latch = new CountDownLatch(1);
-        this.server.close(unused -> latch.countDown());
-        latch.await();
+            return res;
+        };
     }
 }

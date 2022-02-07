@@ -6,6 +6,8 @@ package com.artipie.npm.proxy;
 
 import com.artipie.asto.Storage;
 import com.artipie.asto.rx.RxStorageWrapper;
+import com.artipie.http.rs.StandardRs;
+import com.artipie.http.slice.SliceSimple;
 import com.artipie.npm.proxy.model.NpmAsset;
 import com.artipie.npm.proxy.model.NpmPackage;
 import io.reactivex.Maybe;
@@ -45,7 +47,7 @@ public class NpmProxy {
         this(
             vertx,
             new RxNpmProxyStorage(new RxStorageWrapper(storage)),
-            new HttpNpmRemote(remote, vertx)
+            new HttpNpmRemote(remote, new SliceSimple(StandardRs.OK))
         );
     }
 

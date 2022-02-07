@@ -4,36 +4,39 @@
  */
 package com.artipie.npm.proxy;
 
-import com.artipie.asto.fs.RxFile;
+import com.artipie.asto.Content;
+import com.artipie.asto.ext.PublisherAs;
+import com.artipie.http.ArtipieHttpException;
+import com.artipie.http.Headers;
+import com.artipie.http.Slice;
+import com.artipie.http.headers.ContentType;
+import com.artipie.http.rq.RequestLine;
+import com.artipie.http.rq.RqHeaders;
+import com.artipie.http.rq.RqMethod;
 import com.artipie.npm.misc.DateTimeNowStr;
 import com.artipie.npm.proxy.json.CachedContent;
 import com.artipie.npm.proxy.model.NpmAsset;
 import com.artipie.npm.proxy.model.NpmPackage;
 import com.jcabi.log.Logger;
+import io.reactivex.Flowable;
 import io.reactivex.Maybe;
-import io.vertx.core.file.OpenOptions;
-import io.vertx.ext.web.client.WebClientOptions;
-import io.vertx.reactivex.core.Vertx;
-import io.vertx.reactivex.ext.web.client.HttpResponse;
-import io.vertx.reactivex.ext.web.client.WebClient;
-import io.vertx.reactivex.ext.web.codec.BodyCodec;
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * Base NPM Remote client implementation. It calls remote NPM repository
  * to download NPM packages and assets. It uses underlying Vertx Web Client inside
  * and works in Rx-way.
  * @since 0.1
+ * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
 public final class HttpNpmRemote implements NpmRemote {
-    /**
-     * Web client.
-     */
-    private final WebClient client;
 
     /**
      * NPM Proxy config.
@@ -41,103 +44,62 @@ public final class HttpNpmRemote implements NpmRemote {
     private final URI remote;
 
     /**
-     * The Vertx instance.
+     * Origin client slice.
      */
-    private final Vertx vertx;
+    private final Slice origin;
 
     /**
      * Ctor.
      * @param remote Uri remote
-     * @param vertx The Vertx instance
+     * @param origin Client slice
      */
-    HttpNpmRemote(final URI remote, final Vertx vertx) {
+    HttpNpmRemote(final URI remote, final Slice origin) {
         this.remote = remote;
-        this.vertx = vertx;
-        this.client = WebClient.create(vertx, HttpNpmRemote.defaultWebClientOptions());
+        this.origin = origin;
     }
 
     @Override
     //@checkstyle ReturnCountCheck (40 lines)
     public Maybe<NpmPackage> loadPackage(final String name) {
-        return this.client.getAbs(String.format("%s/%s", this.remote.toString(), name))
-            .rxSend()
-            .flatMapMaybe(
-                response -> {
-                    //@checkstyle MagicNumberCheck (1 line)
-                    if (response.statusCode() == 200) {
-                        return Maybe.just(
-                            new NpmPackage(
-                                name,
-                                new CachedContent(response.bodyAsString(), name).value().toString(),
-                                HttpNpmRemote.lastModifiedOrNow(response),
-                                OffsetDateTime.now()
-                            )
-                        );
-                    } else {
-                        Logger.debug(
-                            NpmProxy.class,
-                            "Could not load package: status code %d",
-                            response.statusCode()
-                        );
-                        return Maybe.empty();
-                    }
-                }
-            ).onErrorResumeNext(
-                throwable -> {
-                    Logger.error(
-                        NpmProxy.class,
-                        "Error occurred when process get package call: %s",
-                        throwable.getMessage()
-                    );
-                    return Maybe.empty();
-                }
-            );
+        return Maybe.fromFuture(
+            this.performRemoteRequest(name).thenCompose(
+                pair -> new PublisherAs(pair.getKey()).asciiString().thenApply(
+                    str -> new NpmPackage(
+                        name,
+                        new CachedContent(str, name).value().toString(),
+                        HttpNpmRemote.lastModifiedOrNow(pair.getValue()),
+                        OffsetDateTime.now()
+                    )
+                )
+            ).toCompletableFuture()
+        ).onErrorResumeNext(
+            throwable -> {
+                Logger.error(
+                    HttpNpmRemote.class,
+                    "Error occurred when process get package call: %s",
+                    throwable.getMessage()
+                );
+                return Maybe.empty();
+            }
+        );
     }
 
     @Override
     //@checkstyle ReturnCountCheck (50 lines)
     public Maybe<NpmAsset> loadAsset(final String path, final Path tmp) {
-        return this.vertx.fileSystem().rxOpen(
-            tmp.toAbsolutePath().toString(),
-            new OpenOptions().setSync(true).setTruncateExisting(true)
-        ).flatMapMaybe(
-            asyncfile ->
-                this.client.getAbs(
-                    String.format("%s/%s", this.remote.toString(), path)
-                ).as(
-                    BodyCodec.pipe(asyncfile)
-                ).rxSend().flatMapMaybe(
-                    response -> {
-                        // @checkstyle MagicNumberCheck (1 line)
-                        if (response.statusCode() == 200) {
-                            return Maybe.just(
-                                new NpmAsset(
-                                    path,
-                                    new RxFile(tmp).flow(),
-                                    HttpNpmRemote.lastModifiedOrNow(response),
-                                    Optional.ofNullable(
-                                        response.getHeader("Content-Type")
-                                    ).orElseThrow(
-                                        () -> new IllegalStateException(
-                                            "Failed to get 'Content-Type'"
-                                        )
-                                    )
-                                )
-                            );
-                        } else {
-                            Logger.debug(
-                                NpmProxy.class,
-                                "Could not load asset: status code %d",
-                                response.statusCode()
-                            );
-                            return Maybe.empty();
-                        }
-                    }
+        return Maybe.fromFuture(
+            this.performRemoteRequest(path).thenApply(
+                pair -> new NpmAsset(
+                    path,
+                    pair.getKey(),
+                    HttpNpmRemote.lastModifiedOrNow(pair.getValue()),
+                    new ContentType(pair.getValue()).getValue()
                 )
+            )
         ).onErrorResumeNext(
             throwable -> {
                 Logger.error(
-                    NpmProxy.class,
+                    HttpNpmRemote.class,
                     "Error occurred when process get asset call: %s",
                     throwable.getMessage()
                 );
@@ -148,30 +110,49 @@ public final class HttpNpmRemote implements NpmRemote {
 
     @Override
     public void close() {
-        this.client.close();
+        //does nothing
     }
 
     /**
-     * Build default Web Client options.
-     * @return Default Web Client options
+     * Performs request to remote and returns remote body and headers in CompletableFuture.
+     * @param name Asset name
+     * @return Completable action with content and headers
      */
-    private static WebClientOptions defaultWebClientOptions() {
-        final WebClientOptions options = new WebClientOptions();
-        options.setKeepAlive(true);
-        options.setUserAgent("Artipie");
-        return options;
+    private CompletableFuture<Pair<Content, Headers>> performRemoteRequest(final String name) {
+        final CompletableFuture<Pair<Content, Headers>> promise = new CompletableFuture<>();
+        this.origin.response(
+            new RequestLine(RqMethod.GET, String.format("%s/%s", this.remote.toString(), name))
+                .toString(),
+            Headers.EMPTY, Content.EMPTY
+        ).send(
+            (rsstatus, rsheaders, rsbody) -> {
+                final CompletableFuture<Void> term = new CompletableFuture<>();
+                if (rsstatus.success()) {
+                    final Flowable<ByteBuffer> body = Flowable.fromPublisher(rsbody)
+                        .doOnError(term::completeExceptionally)
+                        .doOnTerminate(() -> term.complete(null));
+                    promise.complete(new ImmutablePair<>(new Content.From(body), rsheaders));
+                } else {
+                    promise.completeExceptionally(new ArtipieHttpException(rsstatus));
+                }
+                return term;
+            }
+        );
+        return promise;
     }
 
     /**
      * Tries to get header {@code Last-Modified} from remote response
      * or returns current time.
-     * @param response Remote response
-     * @param <T> Type of response
+     * @param hdrs Remote headers
      * @return Time value.
      */
-    private static <T> String lastModifiedOrNow(final HttpResponse<T> response) {
-        return Optional.ofNullable(
-            response.getHeader("Last-Modified")
-        ).orElse(new DateTimeNowStr().value());
+    private static String lastModifiedOrNow(final Headers hdrs) {
+        final RqHeaders hdr = new RqHeaders(hdrs, "Last-Modified");
+        String res = new DateTimeNowStr().value();
+        if (!hdr.isEmpty()) {
+            res = hdr.get(0);
+        }
+        return res;
     }
 }
