@@ -9,6 +9,12 @@ import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
+import com.artipie.http.Headers;
+import com.artipie.http.headers.ContentType;
+import com.artipie.http.rs.RsFull;
+import com.artipie.http.rs.RsStatus;
+import com.artipie.http.rs.StandardRs;
+import com.artipie.http.slice.SliceSimple;
 import com.artipie.npm.TgzArchive;
 import com.artipie.npm.misc.NextSafeAvailablePort;
 import com.artipie.npm.proxy.NpmProxy;
@@ -17,7 +23,6 @@ import io.vertx.reactivex.core.Vertx;
 import io.vertx.reactivex.ext.web.client.WebClient;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ExecutionException;
 import javax.json.Json;
 import javax.json.JsonObject;
 import org.hamcrest.MatcherAssert;
@@ -40,32 +45,19 @@ final class DownloadAssetSliceTest {
     private static final Vertx VERTX = Vertx.vertx();
 
     /**
-     * NPM Proxy.
+     * TgzArchive path.
      */
-    private NpmProxy npm;
+    private static final String TGZ =
+        "@hello/simple-npm-project/-/@hello/simple-npm-project-1.0.1.tgz";
 
     /**
      * Server port.
      */
     private int port;
 
-    /**
-     * TgzArchive path.
-     */
-    private String tgzpath;
-
     @BeforeEach
-    void setUp() throws InterruptedException, ExecutionException {
-        final Storage storage = new InMemoryStorage();
-        this.tgzpath =
-            "@hello/simple-npm-project/-/@hello/simple-npm-project-1.0.1.tgz";
-        this.saveFilesToStorage(storage);
+    void setUp() {
         this.port = new NextSafeAvailablePort().value();
-        this.npm = new NpmProxy(
-            URI.create(String.format("http://127.0.0.1:%d", this.port)),
-            DownloadAssetSliceTest.VERTX,
-            storage
-        );
     }
 
     @AfterAll
@@ -75,63 +67,98 @@ final class DownloadAssetSliceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "/ctx"})
-    void downloadMetaWorks(final String pathprefix) {
-        final AssetPath path = new AssetPath(
-            pathprefix.replaceFirst("/", "")
-        );
+    void obtainsFromStorage(final String pathprefix) {
+        final Storage storage = new InMemoryStorage();
+        this.saveFilesToStorage(storage);
+        final AssetPath path = new AssetPath(pathprefix.replaceFirst("/", ""));
         try (
             VertxSliceServer server = new VertxSliceServer(
                 DownloadAssetSliceTest.VERTX,
-                new DownloadAssetSlice(this.npm, path),
+                new DownloadAssetSlice(
+                    new NpmProxy(
+                        URI.create(String.format("http://127.0.0.1:%d", this.port)),
+                        storage,
+                        new SliceSimple(StandardRs.NOT_FOUND)
+                    ),
+                    path
+                ),
                 this.port
             )
         ) {
-            server.start();
-            final String url = String.format(
-                "http://127.0.0.1:%d%s/%s",
-                this.port,
-                pathprefix,
-                this.tgzpath
-            );
-            final WebClient client = WebClient.create(DownloadAssetSliceTest.VERTX);
-            final String tgzcontent = client.getAbs(url)
-                .rxSend().blockingGet()
-                .bodyAsString(StandardCharsets.ISO_8859_1.name());
-            final JsonObject json = new TgzArchive(tgzcontent, false)
-                .packageJson()
-                .blockingGet();
-            MatcherAssert.assertThat(
-                "Name is parsed properly from package.json",
-                json.getJsonString("name").getString(),
-                new IsEqual<>("@hello/simple-npm-project")
-            );
-            MatcherAssert.assertThat(
-                "Version is parsed properly from package.json",
-                json.getJsonString("version").getString(),
-                new IsEqual<>("1.0.1")
-            );
+            this.performRequestAndChecks(pathprefix, server);
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "/ctx"})
+    void obtainsFromRemote(final String pathprefix) {
+        final AssetPath path = new AssetPath(pathprefix.replaceFirst("/", ""));
+        try (
+            VertxSliceServer server = new VertxSliceServer(
+                DownloadAssetSliceTest.VERTX,
+                new DownloadAssetSlice(
+                    new NpmProxy(
+                        URI.create(String.format("http://127.0.0.1:%d", this.port)),
+                        new InMemoryStorage(),
+                        new SliceSimple(
+                            new RsFull(
+                                RsStatus.OK,
+                                new Headers.From(new ContentType("tgz")),
+                                new Content.From(
+                                    new TestResource(
+                                        String.format("storage/%s", DownloadAssetSliceTest.TGZ)
+                                    ).asBytes()
+                                )
+                            )
+                        )
+                    ),
+                    path
+                ),
+                this.port
+            )
+        ) {
+            this.performRequestAndChecks(pathprefix, server);
+        }
+    }
+
+    private void performRequestAndChecks(final String pathprefix, final VertxSliceServer server) {
+        server.start();
+        final String url = String.format(
+            "http://127.0.0.1:%d%s/%s", this.port, pathprefix, DownloadAssetSliceTest.TGZ
+        );
+        final WebClient client = WebClient.create(DownloadAssetSliceTest.VERTX);
+        final String tgzcontent = client.getAbs(url)
+            .rxSend().blockingGet()
+            .bodyAsString(StandardCharsets.ISO_8859_1.name());
+        final JsonObject json = new TgzArchive(tgzcontent, false).packageJson().blockingGet();
+        MatcherAssert.assertThat(
+            "Name is parsed properly from package.json",
+            json.getJsonString("name").getString(),
+            new IsEqual<>("@hello/simple-npm-project")
+        );
+        MatcherAssert.assertThat(
+            "Version is parsed properly from package.json",
+            json.getJsonString("version").getString(),
+            new IsEqual<>("1.0.1")
+        );
     }
 
     /**
      * Save files to storage from test resources.
      * @param storage Storage
-     * @throws InterruptedException If interrupts
-     * @throws ExecutionException If execution fails
      */
-    private void saveFilesToStorage(final Storage storage)
-        throws InterruptedException, ExecutionException {
+    private void saveFilesToStorage(final Storage storage) {
         storage.save(
-            new Key.From(this.tgzpath),
+            new Key.From(DownloadAssetSliceTest.TGZ),
             new Content.From(
                 new TestResource(
-                    String.format("storage/%s", this.tgzpath)
+                    String.format("storage/%s", DownloadAssetSliceTest.TGZ)
                 ).asBytes()
             )
-        ).get();
+        ).join();
         storage.save(
             new Key.From(
-                String.format("%s.meta", this.tgzpath)
+                String.format("%s.meta", DownloadAssetSliceTest.TGZ)
             ),
             new Content.From(
                 Json.createObjectBuilder()
@@ -140,6 +167,6 @@ final class DownloadAssetSliceTest {
                     .toString()
                     .getBytes()
             )
-        ).get();
+        ).join();
     }
 }

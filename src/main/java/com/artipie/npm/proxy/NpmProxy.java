@@ -6,15 +6,14 @@ package com.artipie.npm.proxy;
 
 import com.artipie.asto.Storage;
 import com.artipie.asto.rx.RxStorageWrapper;
-import com.artipie.http.rs.StandardRs;
-import com.artipie.http.slice.SliceSimple;
+import com.artipie.http.Slice;
+import com.artipie.http.client.ClientSlices;
+import com.artipie.http.client.UriClientSlice;
 import com.artipie.npm.proxy.model.NpmAsset;
 import com.artipie.npm.proxy.model.NpmPackage;
 import io.reactivex.Maybe;
-import io.vertx.reactivex.core.Vertx;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Paths;
 
 /**
  * NPM Proxy.
@@ -22,10 +21,6 @@ import java.nio.file.Paths;
  * @checkstyle ClassDataAbstractionCouplingCheck (200 lines)
  */
 public class NpmProxy {
-    /**
-     * The Vertx instance.
-     */
-    private final Vertx vertx;
 
     /**
      * The storage.
@@ -40,29 +35,35 @@ public class NpmProxy {
     /**
      * Ctor.
      * @param remote Uri remote
-     * @param vertx Vertx instance
      * @param storage Adapter storage
+     * @param client Client slices
      */
-    public NpmProxy(final URI remote, final Vertx vertx, final Storage storage) {
+    public NpmProxy(final URI remote, final Storage storage, final ClientSlices client) {
         this(
-            vertx,
             new RxNpmProxyStorage(new RxStorageWrapper(storage)),
-            new HttpNpmRemote(remote, new SliceSimple(StandardRs.OK))
+            new HttpNpmRemote(remote, new UriClientSlice(client, remote))
+        );
+    }
+
+    /**
+     * Ctor.
+     * @param remote Uri remote
+     * @param storage Adapter storage
+     * @param client Client slice
+     */
+    public NpmProxy(final URI remote, final Storage storage, final Slice client) {
+        this(
+            new RxNpmProxyStorage(new RxStorageWrapper(storage)),
+            new HttpNpmRemote(remote, client)
         );
     }
 
     /**
      * Default-scoped ctor (for tests).
-     * @param vertx Vertx instance
      * @param storage NPM storage
      * @param remote Remote repository client
-     * @checkstyle ParameterNumberCheck (10 lines)
      */
-    NpmProxy(
-        final Vertx vertx,
-        final NpmProxyStorage storage,
-        final NpmRemote remote) {
-        this.vertx = vertx;
+    NpmProxy(final NpmProxyStorage storage, final NpmRemote remote) {
         this.storage = storage;
         this.remote = remote;
     }
@@ -87,14 +88,10 @@ public class NpmProxy {
     public Maybe<NpmAsset> getAsset(final String path) {
         return this.storage.getAsset(path).switchIfEmpty(
             Maybe.defer(
-                () -> this.vertx.fileSystem().rxCreateTempFile("npm-asset-", ".tmp")
-                    .flatMapMaybe(
-                        tmp -> this.remote.loadAsset(path, Paths.get(tmp)).flatMap(
-                            asset -> this.storage.save(asset)
-                                .andThen(Maybe.defer(() -> this.storage.getAsset(path)))
-                                .doOnTerminate(() -> this.vertx.fileSystem().rxDelete(tmp))
-                        )
-                    )
+                () -> this.remote.loadAsset(path, null).flatMap(
+                    asset -> this.storage.save(asset)
+                        .andThen(Maybe.defer(() -> this.storage.getAsset(path)))
+                )
             )
         );
     }

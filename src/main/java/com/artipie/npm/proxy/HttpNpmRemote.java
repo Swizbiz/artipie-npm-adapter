@@ -53,7 +53,7 @@ public final class HttpNpmRemote implements NpmRemote {
      * @param remote Uri remote
      * @param origin Client slice
      */
-    HttpNpmRemote(final URI remote, final Slice origin) {
+    public HttpNpmRemote(final URI remote, final Slice origin) {
         this.remote = remote;
         this.origin = origin;
     }

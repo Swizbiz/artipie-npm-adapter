@@ -5,6 +5,8 @@
 package com.artipie.npm.proxy;
 
 import com.artipie.asto.memory.InMemoryStorage;
+import com.artipie.http.client.Settings;
+import com.artipie.http.client.jetty.JettyClientSlices;
 import com.artipie.npm.RandomFreePort;
 import com.artipie.npm.proxy.http.NpmProxySlice;
 import com.artipie.vertx.VertxSliceServer;
@@ -20,7 +22,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -52,6 +53,13 @@ public final class NpmProxyITCase {
     private static int listenPort;
 
     /**
+     * Jetty client.
+     */
+    private final JettyClientSlices client = new JettyClientSlices(
+        new Settings.WithFollowRedirects(true)
+    );
+
+    /**
      * Node test container.
      */
     @org.testcontainers.junit.jupiter.Container
@@ -71,7 +79,6 @@ public final class NpmProxyITCase {
     private VertxSliceServer srv;
 
     @Test
-    @Disabled
     public void installModule() throws IOException, InterruptedException {
         final Container.ExecResult result = this.npmcnter.execInContainer(
             "npm",
@@ -145,13 +152,14 @@ public final class NpmProxyITCase {
     }
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         final String address = this.verdaccio.getContainerIpAddress();
         final Integer port = this.verdaccio.getFirstMappedPort();
+        this.client.start();
         final NpmProxy npm = new NpmProxy(
             URI.create(String.format("http://%s:%d", address, port)),
-            NpmProxyITCase.VERTX,
-            new InMemoryStorage()
+            new InMemoryStorage(),
+            this.client
         );
         final NpmProxySlice slice = new NpmProxySlice("npm-proxy", npm);
         this.srv = new VertxSliceServer(NpmProxyITCase.VERTX, slice, NpmProxyITCase.listenPort);
@@ -159,8 +167,9 @@ public final class NpmProxyITCase {
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws Exception {
         this.srv.stop();
+        this.client.stop();
     }
 
     @BeforeAll

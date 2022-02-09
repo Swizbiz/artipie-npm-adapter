@@ -9,15 +9,19 @@ import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
+import com.artipie.http.rs.RsStatus;
+import com.artipie.http.rs.RsWithBody;
+import com.artipie.http.rs.StandardRs;
+import com.artipie.http.slice.SliceSimple;
 import com.artipie.npm.RandomFreePort;
 import com.artipie.npm.proxy.NpmProxy;
 import com.artipie.vertx.VertxSliceServer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.reactivex.core.Vertx;
+import io.vertx.reactivex.core.buffer.Buffer;
+import io.vertx.reactivex.ext.web.client.HttpResponse;
 import io.vertx.reactivex.ext.web.client.WebClient;
-import java.io.IOException;
 import java.net.URI;
-import java.util.concurrent.ExecutionException;
 import javax.json.Json;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
@@ -43,25 +47,13 @@ final class DownloadPackageSliceTest {
     private static final Vertx VERTX = Vertx.vertx();
 
     /**
-     * NPM Proxy.
-     */
-    private NpmProxy npm;
-
-    /**
      * Server port.
      */
     private int port;
 
     @BeforeEach
-    void setUp() throws InterruptedException, ExecutionException, IOException {
-        final Storage storage = new InMemoryStorage();
-        this.saveFilesToStorage(storage);
+    void setUp() throws Exception {
         this.port = new RandomFreePort().value();
-        this.npm = new NpmProxy(
-            URI.create(String.format("http://127.0.0.1:%d", this.port)),
-            DownloadPackageSliceTest.VERTX,
-            storage
-        );
     }
 
     @AfterAll
@@ -71,56 +63,98 @@ final class DownloadPackageSliceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"/ctx"})
-    void downloadMetaWorks(final String pathprefix) {
-        final PackagePath path = new PackagePath(
-            pathprefix.replaceFirst("/", "")
-        );
+    void obtainsFromStorage(final String pathprefix) {
+        final Storage storage = new InMemoryStorage();
+        this.saveFilesToStorage(storage);
+        final PackagePath path = new PackagePath(pathprefix.replaceFirst("/", ""));
         try (
             VertxSliceServer server = new VertxSliceServer(
                 DownloadPackageSliceTest.VERTX,
-                new DownloadPackageSlice(this.npm, path),
+                new DownloadPackageSlice(
+                    new NpmProxy(
+                        URI.create(String.format("http://127.0.0.1:%d", this.port)),
+                        storage,
+                        new SliceSimple(StandardRs.NOT_FOUND)
+                    ),
+                    path
+                ),
                 this.port
             )
         ) {
-            server.start();
-            final String url = String.format(
-                "http://127.0.0.1:%d%s/@hello/simple-npm-project",
-                this.port,
-                pathprefix
-            );
-            final WebClient client = WebClient.create(DownloadPackageSliceTest.VERTX);
-            final JsonObject json = client.getAbs(url).rxSend().blockingGet().body().toJsonObject();
-            MatcherAssert.assertThat(
-                json.getJsonObject("versions").getJsonObject("1.0.1")
-                    .getJsonObject("dist").getString("tarball"),
-                new IsEqual<>(
-                    String.format(
-                        "%s/-/@hello/simple-npm-project-1.0.1.tgz",
-                        url
-                    )
-                )
-            );
+            this.pereformRequestAndChecks(pathprefix, server);
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/ctx"})
+    void obtainsFromRemote(final String pathprefix) {
+        final PackagePath path = new PackagePath(pathprefix.replaceFirst("/", ""));
+        try (
+            VertxSliceServer server = new VertxSliceServer(
+                DownloadPackageSliceTest.VERTX,
+                new DownloadPackageSlice(
+                    new NpmProxy(
+                        URI.create(String.format("http://127.0.0.1:%d", this.port)),
+                        new InMemoryStorage(),
+                        new SliceSimple(
+                            new RsWithBody(
+                                StandardRs.OK,
+                                new TestResource("storage/@hello/simple-npm-project/meta.json")
+                                    .asBytes()
+                            )
+                        )
+                    ),
+                    path
+                ),
+                this.port
+            )
+        ) {
+            this.pereformRequestAndChecks(pathprefix, server);
+        }
+    }
+
+    private void pereformRequestAndChecks(
+        final String pathprefix, final VertxSliceServer server
+    ) {
+        server.start();
+        final String url = String.format(
+            "http://127.0.0.1:%d%s/@hello/simple-npm-project",
+            this.port,
+            pathprefix
+        );
+        final WebClient client = WebClient.create(DownloadPackageSliceTest.VERTX);
+        final HttpResponse<Buffer> resp = client.getAbs(url).rxSend().blockingGet();
+        MatcherAssert.assertThat(
+            "Status code should be 200 OK",
+            String.valueOf(resp.statusCode()),
+            new IsEqual<>(RsStatus.OK.code())
+        );
+        final JsonObject json = resp.body().toJsonObject();
+        MatcherAssert.assertThat(
+            "Json response is incorrect",
+            json.getJsonObject("versions").getJsonObject("1.0.1")
+                .getJsonObject("dist").getString("tarball"),
+            new IsEqual<>(
+                String.format(
+                    "%s/-/@hello/simple-npm-project-1.0.1.tgz",
+                    url
+                )
+            )
+        );
     }
 
     /**
      * Save files to storage from test resources.
      * @param storage Storage
-     * @throws InterruptedException If interrupts
-     * @throws ExecutionException If execution fails
      */
-    private void saveFilesToStorage(final Storage storage)
-        throws InterruptedException, ExecutionException {
-        final String metajsonpath =
-            "@hello/simple-npm-project/meta.json";
+    private void saveFilesToStorage(final Storage storage) {
+        final String metajsonpath = "@hello/simple-npm-project/meta.json";
         storage.save(
             new Key.From(metajsonpath),
             new Content.From(
-                new TestResource(
-                    String.format("storage/%s", metajsonpath)
-                ).asBytes()
+                new TestResource(String.format("storage/%s", metajsonpath)).asBytes()
             )
-        ).get();
+        ).join();
         storage.save(
             new Key.From("@hello", "simple-npm-project", "meta.meta"),
             new Content.From(
@@ -131,6 +165,6 @@ final class DownloadPackageSliceTest {
                     .toString()
                     .getBytes()
             )
-        ).get();
+        ).join();
     }
 }

@@ -9,7 +9,6 @@ import com.artipie.npm.proxy.model.NpmAsset;
 import com.artipie.npm.proxy.model.NpmPackage;
 import io.reactivex.Completable;
 import io.reactivex.Maybe;
-import io.vertx.reactivex.core.Vertx;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
@@ -17,7 +16,6 @@ import java.time.temporal.ChronoUnit;
 import org.apache.commons.io.IOUtils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsSame;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -38,10 +36,6 @@ import org.mockito.stubbing.Answer;
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
 public final class NpmProxyTest {
-    /**
-     * Vertx instance.
-     */
-    private static final Vertx VERTX = Vertx.vertx();
 
     /**
      * Last modified date for both package and asset.
@@ -179,11 +173,7 @@ public final class NpmProxyTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        this.npm = new NpmProxy(
-            NpmProxyTest.VERTX,
-            this.storage,
-            this.remote
-        );
+        this.npm = new NpmProxy(this.storage, this.remote);
         Mockito.doNothing().when(this.remote).close();
     }
 
@@ -191,11 +181,6 @@ public final class NpmProxyTest {
     void tearDown() throws IOException {
         this.npm.close();
         Mockito.verify(this.remote).close();
-    }
-
-    @AfterAll
-    static void cleanup() {
-        NpmProxyTest.VERTX.close();
     }
 
     private static NpmPackage defaultPackage(final OffsetDateTime refreshed) throws IOException {
