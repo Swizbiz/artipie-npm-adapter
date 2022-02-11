@@ -21,7 +21,6 @@ import com.artipie.npm.proxy.NpmProxy;
 import com.artipie.vertx.VertxSliceServer;
 import io.vertx.reactivex.core.Vertx;
 import io.vertx.reactivex.ext.web.client.WebClient;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import javax.json.Json;
 import javax.json.JsonObject;
@@ -76,7 +75,6 @@ final class DownloadAssetSliceTest {
                 DownloadAssetSliceTest.VERTX,
                 new DownloadAssetSlice(
                     new NpmProxy(
-                        URI.create(String.format("http://127.0.0.1:%d", this.port)),
                         storage,
                         new SliceSimple(StandardRs.NOT_FOUND)
                     ),
@@ -98,7 +96,6 @@ final class DownloadAssetSliceTest {
                 DownloadAssetSliceTest.VERTX,
                 new DownloadAssetSlice(
                     new NpmProxy(
-                        URI.create(String.format("http://127.0.0.1:%d", this.port)),
                         new InMemoryStorage(),
                         new SliceSimple(
                             new RsFull(

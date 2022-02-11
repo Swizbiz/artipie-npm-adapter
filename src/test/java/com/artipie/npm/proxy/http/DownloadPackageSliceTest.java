@@ -21,7 +21,6 @@ import io.vertx.reactivex.core.Vertx;
 import io.vertx.reactivex.core.buffer.Buffer;
 import io.vertx.reactivex.ext.web.client.HttpResponse;
 import io.vertx.reactivex.ext.web.client.WebClient;
-import java.net.URI;
 import javax.json.Json;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.IsEqual;
@@ -72,7 +71,6 @@ final class DownloadPackageSliceTest {
                 DownloadPackageSliceTest.VERTX,
                 new DownloadPackageSlice(
                     new NpmProxy(
-                        URI.create(String.format("http://127.0.0.1:%d", this.port)),
                         storage,
                         new SliceSimple(StandardRs.NOT_FOUND)
                     ),
@@ -94,7 +92,6 @@ final class DownloadPackageSliceTest {
                 DownloadPackageSliceTest.VERTX,
                 new DownloadPackageSlice(
                     new NpmProxy(
-                        URI.create(String.format("http://127.0.0.1:%d", this.port)),
                         new InMemoryStorage(),
                         new SliceSimple(
                             new RsWithBody(

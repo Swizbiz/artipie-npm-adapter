@@ -41,20 +41,19 @@ public class NpmProxy {
     public NpmProxy(final URI remote, final Storage storage, final ClientSlices client) {
         this(
             new RxNpmProxyStorage(new RxStorageWrapper(storage)),
-            new HttpNpmRemote(remote, new UriClientSlice(client, remote))
+            new HttpNpmRemote(new UriClientSlice(client, remote))
         );
     }
 
     /**
      * Ctor.
-     * @param remote Uri remote
      * @param storage Adapter storage
      * @param client Client slice
      */
-    public NpmProxy(final URI remote, final Storage storage, final Slice client) {
+    public NpmProxy(final Storage storage, final Slice client) {
         this(
             new RxNpmProxyStorage(new RxStorageWrapper(storage)),
-            new HttpNpmRemote(remote, client)
+            new HttpNpmRemote(client)
         );
     }
 

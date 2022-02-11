@@ -17,7 +17,6 @@ import com.artipie.npm.proxy.http.RsNotFound;
 import com.artipie.npm.proxy.model.NpmAsset;
 import com.artipie.npm.proxy.model.NpmPackage;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -147,10 +146,7 @@ public final class HttpNpmRemoteTest {
 
     @BeforeEach
     void setUp() {
-        this.remote = new HttpNpmRemote(
-            URI.create("http://localhost:8080"),
-            this.prepareClientSlice()
-        );
+        this.remote = new HttpNpmRemote(this.prepareClientSlice());
     }
 
     private Slice prepareClientSlice() {

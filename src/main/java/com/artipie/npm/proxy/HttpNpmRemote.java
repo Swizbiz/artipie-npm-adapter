@@ -20,7 +20,6 @@ import com.artipie.npm.proxy.model.NpmPackage;
 import com.jcabi.log.Logger;
 import io.reactivex.Flowable;
 import io.reactivex.Maybe;
-import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -39,22 +38,15 @@ import org.apache.commons.lang3.tuple.Pair;
 public final class HttpNpmRemote implements NpmRemote {
 
     /**
-     * NPM Proxy config.
-     */
-    private final URI remote;
-
-    /**
      * Origin client slice.
      */
     private final Slice origin;
 
     /**
      * Ctor.
-     * @param remote Uri remote
      * @param origin Client slice
      */
-    public HttpNpmRemote(final URI remote, final Slice origin) {
-        this.remote = remote;
+    public HttpNpmRemote(final Slice origin) {
         this.origin = origin;
     }
 
@@ -121,8 +113,7 @@ public final class HttpNpmRemote implements NpmRemote {
     private CompletableFuture<Pair<Content, Headers>> performRemoteRequest(final String name) {
         final CompletableFuture<Pair<Content, Headers>> promise = new CompletableFuture<>();
         this.origin.response(
-            new RequestLine(RqMethod.GET, String.format("%s/%s", this.remote.toString(), name))
-                .toString(),
+            new RequestLine(RqMethod.GET, String.format("/%s", name)).toString(),
             Headers.EMPTY, Content.EMPTY
         ).send(
             (rsstatus, rsheaders, rsbody) -> {
