@@ -85,7 +85,7 @@ public final class HttpNpmRemote implements NpmRemote {
                     path,
                     pair.getKey(),
                     HttpNpmRemote.lastModifiedOrNow(pair.getValue()),
-                    new ContentType(pair.getValue()).getValue()
+                    HttpNpmRemote.contentType(pair.getValue())
                 )
             )
         ).onErrorResumeNext(
@@ -141,6 +141,21 @@ public final class HttpNpmRemote implements NpmRemote {
     private static String lastModifiedOrNow(final Headers hdrs) {
         final RqHeaders hdr = new RqHeaders(hdrs, "Last-Modified");
         String res = new DateTimeNowStr().value();
+        if (!hdr.isEmpty()) {
+            res = hdr.get(0);
+        }
+        return res;
+    }
+
+    /**
+     * Tries to get header {@code ContentType} from remote response
+     * or returns {@code application/octet-stream}.
+     * @param hdrs Remote headers
+     * @return Content type value
+     */
+    private static String contentType(final Headers hdrs) {
+        final RqHeaders hdr = new RqHeaders(hdrs, ContentType.NAME);
+        String res = "application/octet-stream";
         if (!hdr.isEmpty()) {
             res = hdr.get(0);
         }
