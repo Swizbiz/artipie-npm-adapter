@@ -103,7 +103,8 @@ public final class NpmIT {
     @ParameterizedTest
     @CsvSource({
         "@hello/simple-npm-project,simple-npm-project",
-        "simple-npm-project,project-without-scope"
+        "simple-npm-project,project-without-scope",
+        "@scope.dot_01/project-scope-with-dot,project-scope-with-dot"
     })
     void npmPublishWorks(final String proj, final String resource) throws Exception {
         new TestResource(resource)
@@ -162,7 +163,8 @@ public final class NpmIT {
     @ParameterizedTest
     @CsvSource({
         "@hello/simple-npm-project,simple-npm-project",
-        "simple-npm-project,project-without-scope"
+        "simple-npm-project,project-without-scope",
+        "@scope.dot_01/project-scope-with-dot,project-scope-with-dot"
     })
     void installsPublishedProject(final String proj, final String resource) throws Exception {
         new TestResource(resource)

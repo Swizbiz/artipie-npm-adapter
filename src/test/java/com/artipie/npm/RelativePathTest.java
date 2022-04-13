@@ -31,13 +31,12 @@ final class RelativePathTest {
     @ValueSource(strings = {
         "@scope/yuanye05/-/@scope/yuanye05-1.0.3.tgz",
         "@test/test.suffix/-/@test/test.suffix-5.5.3.tgz",
-        "@my-org/test_suffix/-/@my-org/test_suffix-5.5.3.tgz"
+        "@my-org/test_suffix/-/@my-org/test_suffix-5.5.3.tgz",
+        "@01.02_03/one_new.package/-/@01.02_03/one_new.package-9.0.3.tgz"
     })
     void npmClientWithScopeIdentifiedCorrectly(final String name) {
         MatcherAssert.assertThat(
-            new TgzRelativePath(
-                String.format(RelativePathTest.URL, name)
-            ).relative(),
+            new TgzRelativePath(String.format(RelativePathTest.URL, name)).relative(),
             new IsEqual<>(name)
         );
     }
@@ -50,9 +49,7 @@ final class RelativePathTest {
     })
     void npmClientWithoutScopeIdentifiedCorrectly(final String name) {
         MatcherAssert.assertThat(
-            new TgzRelativePath(
-                String.format(RelativePathTest.URL, name)
-            ).relative(),
+            new TgzRelativePath(String.format(RelativePathTest.URL, name)).relative(),
             new IsEqual<>(name)
         );
     }
@@ -62,16 +59,16 @@ final class RelativePathTest {
         "@scope/yuanye05/yuanye05-1.0.3.tgz",
         "@my-org/test.suffix/test.suffix-5.5.3.tgz",
         "@test-org-test/test/-/test-1.0.0.tgz",
+        "@a.b-c_01/test/-/test-0.1.0.tgz",
         "@thepeaklab/angelis/0.3.0/angelis-0.3.0.tgz",
         "@aa/bb/0.3.1/@aa/bb-0.3.1.tgz",
+        "@a_a-b/bb/0.3.1/@a_a-b/bb-0.3.1.tgz",
         "@aa/bb/0.3.1-alpha/@aa/bb-0.3.1-alpha.tgz",
         "@aa/bb.js/0.3.1-alpha/@aa/bb.js-0.3.1-alpha.tgz"
     })
     void curlWithScopeIdentifiedCorrectly(final String name) {
         MatcherAssert.assertThat(
-            new TgzRelativePath(
-                String.format(RelativePathTest.URL, name)
-            ).relative(),
+            new TgzRelativePath(String.format(RelativePathTest.URL, name)).relative(),
             new IsEqual<>(name)
         );
     }
@@ -85,9 +82,7 @@ final class RelativePathTest {
     })
     void curlWithoutScopeIdentifiedCorrectly(final String name) {
         MatcherAssert.assertThat(
-            new TgzRelativePath(
-                String.format(RelativePathTest.URL, name)
-            ).relative(),
+            new TgzRelativePath(String.format(RelativePathTest.URL, name)).relative(),
             new IsEqual<>(name)
         );
     }
@@ -123,9 +118,7 @@ final class RelativePathTest {
     })
     void replacesHyphenWithVersion(final String path, final String target) {
         MatcherAssert.assertThat(
-            new TgzRelativePath(
-                String.format(RelativePathTest.URL, path)
-            ).relative(true),
+            new TgzRelativePath(String.format(RelativePathTest.URL, path)).relative(true),
             new IsEqual<>(target)
         );
     }

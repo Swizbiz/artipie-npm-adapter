@@ -15,6 +15,14 @@ import java.util.regex.Pattern;
  * @since 0.3
  */
 public final class TgzRelativePath {
+
+    /**
+     * Pattern for npm package name or scope name, the rules can be found
+     * https://github.com/npm/validate-npm-package-name
+     * https://docs.npmjs.com/cli/v8/using-npm/scope.
+     */
+    private static final String NAME = "[\\w][\\w._-]*";
+
     /**
      * Regex pattern for extracting version from package name.
      */
@@ -104,7 +112,12 @@ public final class TgzRelativePath {
      */
     private Optional<Matched> npmWithScope() {
         return this.matches(
-            Pattern.compile("(@[\\w-]+/[\\w.-]+/-/@[\\w-]+/(?<name>[\\w.-]+.tgz)$)")
+            Pattern.compile(
+                String.format(
+                    "(@%s/%s/-/@%s/(?<name>%s.tgz)$)", TgzRelativePath.NAME, TgzRelativePath.NAME,
+                    TgzRelativePath.NAME, TgzRelativePath.NAME
+                )
+            )
         );
     }
 
@@ -115,7 +128,11 @@ public final class TgzRelativePath {
      */
     private Optional<Matched> npmWithoutScope() {
         return this.matches(
-            Pattern.compile("([\\w.-]+/-/(?<name>[\\w.-]+.tgz)$)")
+            Pattern.compile(
+                String.format(
+                    "(%s/-/(?<name>%s.tgz)$)", TgzRelativePath.NAME, TgzRelativePath.NAME
+                )
+            )
         );
     }
 
@@ -126,7 +143,12 @@ public final class TgzRelativePath {
      */
     private Optional<Matched> curlWithScope() {
         return this.matches(
-            Pattern.compile("(@[\\w-]+/[\\w.-]+/(?<name>(@?(?<!-/@)[\\w.-]+/)*[\\w.-]+.tgz)$)")
+            Pattern.compile(
+                String.format(
+                    "(@%s/%s/(?<name>(@?(?<!-/@)[\\w._-]+/)*%s.tgz)$)",
+                    TgzRelativePath.NAME, TgzRelativePath.NAME, TgzRelativePath.NAME
+                )
+            )
         );
     }
 
@@ -137,7 +159,12 @@ public final class TgzRelativePath {
      */
     private Optional<Matched> curlWithoutScope() {
         return this.matches(
-            Pattern.compile("([\\w.-]+(/\\d+.\\d+.\\d+[\\w.-]*)?/(?<name>[\\w.-]+\\.tgz)$)")
+            Pattern.compile(
+                String.format(
+                    "(%s(/\\d+.\\d+.\\d+[\\w.-]*)?/(?<name>%s\\.tgz)$)",
+                    TgzRelativePath.NAME, TgzRelativePath.NAME
+                )
+            )
         );
     }
 
