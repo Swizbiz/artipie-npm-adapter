@@ -153,17 +153,18 @@ public final class TgzRelativePath {
     }
 
     /**
-     * Try to extract a curl path without scope.
+     * Try to extract a curl path without scope. Curl like
+     *
+     * http://10.40.149.70:8080/artifactory/echo-test-npmrepo-Oze0nuvAiD/ssh2//-/ssh2-0.8.9.tgz
+     *
+     * should also be processed exactly as they are with this regex.
      *
      * @return The npm scoped path if found.
      */
     private Optional<Matched> curlWithoutScope() {
         return this.matches(
             Pattern.compile(
-                String.format(
-                    "(%s(/\\d+.\\d+.\\d+[\\w.-]*)?/(?<name>%s\\.tgz)$)",
-                    TgzRelativePath.NAME, TgzRelativePath.NAME
-                )
+                "([\\w._-]+(/\\d+.\\d+.\\d+[\\w.-]*)?/(?<name>[\\w._-]+\\.tgz)$)"
             )
         );
     }
