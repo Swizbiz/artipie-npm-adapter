@@ -1,5 +1,5 @@
 /*
- * The MIT License (MIT) Copyright (c) 2020-2021 artipie.com
+ * The MIT License (MIT) Copyright (c) 2020-2022 artipie.com
  * https://github.com/artipie/npm-adapter/LICENSE.txt
  */
 package com.artipie.npm.proxy.http;
@@ -33,7 +33,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  * Test cases for {@link DownloadPackageSlice}.
  * @since 0.9
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
- * @todo 239#30min Fix download meta for empty prefix.
+ * @todo #239:30min Fix download meta for empty prefix.
  *  Test for downloading meta hangs for some reason when empty prefix
  *  is passed. It is necessary to find out why it happens and add
  *  empty prefix to params of method DownloadPackageSliceTest#downloadMetaWorks.
