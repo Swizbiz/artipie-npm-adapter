@@ -14,11 +14,14 @@ import com.artipie.http.auth.BasicAuthSlice;
 import com.artipie.http.auth.Permission;
 import com.artipie.http.auth.Permissions;
 import com.artipie.http.rq.RqMethod;
+import com.artipie.http.rs.RsStatus;
+import com.artipie.http.rs.RsWithStatus;
 import com.artipie.http.rt.ByMethodsRule;
 import com.artipie.http.rt.RtRule;
 import com.artipie.http.rt.RtRulePath;
 import com.artipie.http.rt.SliceRoute;
 import com.artipie.http.slice.SliceDownload;
+import com.artipie.http.slice.SliceSimple;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -28,10 +31,21 @@ import org.reactivestreams.Publisher;
  * NpmSlice is a http layer in npm adapter.
  *
  * @since 0.3
+ * @todo #340:30min Implement `/npm` endpoint properly: for now `/npm` simply returns 200 OK
+ *  status without any body. We need to figure out what information can (or should) be returned
+ *  by registry on this request and add it. Here are several links that might be useful
+ *  https://github.com/npm/cli
+ *  https://github.com/npm/registry
+ *  https://docs.npmjs.com/cli/v8
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings("PMD.ExcessiveMethodLength")
 public final class NpmSlice implements Slice {
+
+    /**
+     * Header name `npm-command`.
+     */
+    private static final String NPM_COMMAND = "npm-command";
 
     /**
      * Header name `referer`.
@@ -69,6 +83,17 @@ public final class NpmSlice implements Slice {
         this.route = new SliceRoute(
             new RtRulePath(
                 new RtRule.All(
+                    new ByMethodsRule(RqMethod.GET),
+                    new RtRule.ByPath("/npm")
+                ),
+                new BasicAuthSlice(
+                    new SliceSimple(new RsWithStatus(RsStatus.OK)),
+                    auth,
+                    new Permission.ByName(perms, Action.Standard.READ)
+                )
+            ),
+            new RtRulePath(
+                new RtRule.All(
                     new ByMethodsRule(RqMethod.PUT),
                     new RtRule.ByPath(AddDistTagsSlice.PTRN)
                 ),
@@ -92,7 +117,10 @@ public final class NpmSlice implements Slice {
             new RtRulePath(
                 new RtRule.All(
                     new ByMethodsRule(RqMethod.PUT),
-                    new RtRule.ByHeader(NpmSlice.REFERER, CliPublish.HEADER)
+                    new RtRule.Any(
+                        new RtRule.ByHeader(NpmSlice.NPM_COMMAND, CliPublish.HEADER),
+                        new RtRule.ByHeader(NpmSlice.REFERER, CliPublish.HEADER)
+                    )
                 ),
                 new BasicAuthSlice(
                     new UploadSlice(new CliPublish(storage), storage),
@@ -103,7 +131,10 @@ public final class NpmSlice implements Slice {
             new RtRulePath(
                 new RtRule.All(
                     new ByMethodsRule(RqMethod.PUT),
-                    new RtRule.ByHeader(NpmSlice.REFERER, DeprecateSlice.HEADER)
+                    new RtRule.Any(
+                        new RtRule.ByHeader(NpmSlice.NPM_COMMAND, DeprecateSlice.HEADER),
+                        new RtRule.ByHeader(NpmSlice.REFERER, DeprecateSlice.HEADER)
+                    )
                 ),
                 new BasicAuthSlice(
                     new DeprecateSlice(storage),
@@ -114,7 +145,10 @@ public final class NpmSlice implements Slice {
             new RtRulePath(
                 new RtRule.All(
                     new ByMethodsRule(RqMethod.PUT),
-                    new RtRule.ByHeader(NpmSlice.REFERER, UnpublishPutSlice.HEADER)
+                    new RtRule.Any(
+                        new RtRule.ByHeader(NpmSlice.NPM_COMMAND, UnpublishPutSlice.HEADER),
+                        new RtRule.ByHeader(NpmSlice.REFERER, UnpublishPutSlice.HEADER)
+                    )
                 ),
                 new BasicAuthSlice(
                     new UnpublishPutSlice(storage),
