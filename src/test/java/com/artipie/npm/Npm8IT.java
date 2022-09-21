@@ -8,6 +8,7 @@ import com.artipie.asto.Content;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.fs.FileStorage;
+import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.http.slice.LoggingSlice;
 import com.artipie.npm.http.NpmSlice;
@@ -63,9 +64,14 @@ public final class Npm8IT {
     private Vertx vertx;
 
     /**
-     * Storage used as repository.
+     * Storage used as client-side data (for packages to publish and npm-client settings).
      */
-    private Storage storage;
+    private Storage data;
+
+    /**
+     * Storage used for repository data.
+     */
+    private Storage repo;
 
     /**
      * Server.
@@ -85,12 +91,13 @@ public final class Npm8IT {
     @BeforeEach
     void setUp() throws Exception {
         this.vertx = Vertx.vertx();
-        this.storage = new FileStorage(this.tmp);
+        this.data = new FileStorage(this.tmp);
+        this.repo = new InMemoryStorage();
         final int port = new RandomFreePort().value();
         this.url = String.format("http://host.testcontainers.internal:%d", port);
         this.server = new VertxSliceServer(
             this.vertx,
-            new LoggingSlice(new NpmSlice(new URL(this.url), this.storage)),
+            new LoggingSlice(new NpmSlice(new URL(this.url), this.repo)),
             port
         );
         this.server.start();
@@ -100,7 +107,7 @@ public final class Npm8IT {
             .withWorkingDirectory("/home/")
             .withFileSystemBind(this.tmp.toString(), "/home");
         this.cntn.start();
-        this.storage.save(
+        this.data.save(
             new Key.From(".npmrc"),
             new Content.From(
                 String.format("//host.testcontainers.internal:%d/:_authToken=abc123", port)
@@ -124,7 +131,7 @@ public final class Npm8IT {
     })
     void npmPublishWorks(final String proj, final String resource) throws Exception {
         new TestResource(resource).addFilesTo(
-            this.storage,
+            this.data,
             new Key.From(String.format("tmp/%s", proj))
         );
         this.exec(
@@ -132,7 +139,7 @@ public final class Npm8IT {
             "--loglevel", "verbose"
         );
         final JsonObject meta = new JsonFromPublisher(
-            this.storage.value(new Key.From(String.format("%s/meta.json", proj)))
+            this.repo.value(new Key.From(String.format("%s/meta.json", proj)))
                 .toCompletableFuture().join()
         ).json().toCompletableFuture().join();
         MatcherAssert.assertThat(
@@ -145,7 +152,7 @@ public final class Npm8IT {
         );
         MatcherAssert.assertThat(
             "File should be in storage after publishing",
-            this.storage.exists(
+            this.repo.exists(
                 new Key.From(String.format("%s/-/%s-1.0.1.tgz", proj, proj))
             ).toCompletableFuture().join(),
             new IsEqual<>(true)
@@ -155,7 +162,7 @@ public final class Npm8IT {
     @Test
     void npmInstallWorks() throws Exception {
         final String proj = "@hello/simple-npm-project";
-        this.saveFilesToStrg(proj);
+        this.saveFilesToRegistry(proj);
         MatcherAssert.assertThat(
             this.exec("npm", "install", proj, "--registry", this.url, "--loglevel", "verbose"),
             new StringContainsInOrder(Arrays.asList("added 1 package", this.url, proj))
@@ -180,7 +187,7 @@ public final class Npm8IT {
     })
     void installsPublishedProject(final String proj, final String resource) throws Exception {
         new TestResource(resource).addFilesTo(
-            this.storage,
+            this.data,
             new Key.From(String.format("tmp/%s", proj))
         );
         this.exec("npm", "publish", String.format("tmp/%s/", proj), "--registry", this.url);
@@ -190,19 +197,19 @@ public final class Npm8IT {
         );
     }
 
-    private void saveFilesToStrg(final String proj) {
+    private void saveFilesToRegistry(final String proj) {
         new TestResource(String.format("storage/%s/meta.json", proj)).saveTo(
-            this.storage,
+            this.repo,
             new Key.From(proj, "meta.json")
         );
         new TestResource(String.format("storage/%s/-/%s-1.0.1.tgz", proj, proj)).saveTo(
-            this.storage,
+            this.repo,
             new Key.From(proj, "-", String.format("%s-1.0.1.tgz", proj))
         );
     }
 
     private boolean inNpmModule(final String proj, final String file) {
-        return this.storage.exists(new Key.From("node_modules", proj, file)).join();
+        return this.data.exists(new Key.From("node_modules", proj, file)).join();
     }
 
     private String exec(final String... command) throws Exception {

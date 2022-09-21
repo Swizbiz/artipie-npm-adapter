@@ -43,20 +43,19 @@ import org.testcontainers.containers.GenericContainer;
 public final class NpmIT {
 
     /**
-     * Temporary directory for all tests.
-     * @checkstyle VisibilityModifierCheck (3 lines)
-     */
-    @TempDir Path tmp;
-
-    /**
      * Vert.x used to create tested FileStorage.
      */
     private Vertx vertx;
 
     /**
-     * Storage used as repository.
+     * Storage used as client-side data (for packages to publish).
      */
-    private Storage storage;
+    private Storage data;
+
+    /**
+     * Storage used for repository data.
+     */
+    private Storage repo;
 
     /**
      * Server.
@@ -74,14 +73,15 @@ public final class NpmIT {
     private GenericContainer<?> cntn;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp(final @TempDir Path dtmp, final @TempDir Path rtmp) throws Exception {
         this.vertx = Vertx.vertx();
-        this.storage = new FileStorage(this.tmp);
+        this.data = new FileStorage(dtmp);
+        this.repo = new FileStorage(rtmp);
         final int port = new RandomFreePort().value();
         this.url = String.format("http://host.testcontainers.internal:%d", port);
         this.server = new VertxSliceServer(
             this.vertx,
-            new NpmSlice(new URL(this.url), this.storage),
+            new NpmSlice(new URL(this.url), this.repo),
             port
         );
         this.server.start();
@@ -89,7 +89,7 @@ public final class NpmIT {
         this.cntn = new GenericContainer<>("node:14-alpine")
             .withCommand("tail", "-f", "/dev/null")
             .withWorkingDirectory("/home/")
-            .withFileSystemBind(this.tmp.toString(), "/home");
+            .withFileSystemBind(dtmp.toString(), "/home");
         this.cntn.start();
     }
 
@@ -107,14 +107,13 @@ public final class NpmIT {
         "@scope.dot_01/project-scope-with-dot,project-scope-with-dot"
     })
     void npmPublishWorks(final String proj, final String resource) throws Exception {
-        new TestResource(resource)
-            .addFilesTo(
-                this.storage,
-                new Key.From(String.format("tmp/%s", proj))
+        new TestResource(resource).addFilesTo(
+            this.data,
+            new Key.From(String.format("tmp/%s", proj))
         );
         this.exec("npm", "publish", String.format("tmp/%s", proj), "--registry", this.url);
         final JsonObject meta = new JsonFromPublisher(
-            this.storage.value(
+            this.repo.value(
                 new Key.From(String.format("%s/meta.json", proj))
             ).toCompletableFuture().join()
         ).json().toCompletableFuture().join();
@@ -128,7 +127,7 @@ public final class NpmIT {
         );
         MatcherAssert.assertThat(
             "File should be in storage after publishing",
-            this.storage.exists(
+            this.repo.exists(
                 new Key.From(String.format("%s/-/%s-1.0.1.tgz", proj, proj))
             ).toCompletableFuture().join(),
             new IsEqual<>(true)
@@ -138,14 +137,11 @@ public final class NpmIT {
     @Test
     void npmInstallWorks() throws Exception {
         final String proj = "@hello/simple-npm-project";
-        this.saveFilesToStrg(proj);
+        this.saveFilesToRegustry(proj);
         MatcherAssert.assertThat(
             this.exec("npm", "install", proj, "--registry", this.url),
             new StringContainsInOrder(
-                Arrays.asList(
-                    String.format("+ %s@1.0.1", proj),
-                    "added 1 package"
-                )
+                Arrays.asList(String.format("+ %s@1.0.1", proj), "added 1 package")
             )
         );
         MatcherAssert.assertThat(
@@ -167,10 +163,8 @@ public final class NpmIT {
         "@scope.dot_01/project-scope-with-dot,project-scope-with-dot"
     })
     void installsPublishedProject(final String proj, final String resource) throws Exception {
-        new TestResource(resource)
-            .addFilesTo(
-                this.storage,
-                new Key.From(String.format("tmp/%s", proj))
+        new TestResource(resource).addFilesTo(
+            this.data, new Key.From(String.format("tmp/%s", proj))
         );
         this.exec("npm", "publish", String.format("tmp/%s", proj), "--registry", this.url);
         MatcherAssert.assertThat(
@@ -184,25 +178,17 @@ public final class NpmIT {
         );
     }
 
-    private void saveFilesToStrg(final String proj) {
-        new TestResource(String.format("storage/%s/meta.json", proj))
-            .saveTo(
-                this.storage,
-                new Key.From(proj, "meta.json")
+    private void saveFilesToRegustry(final String proj) {
+        new TestResource(String.format("storage/%s/meta.json", proj)).saveTo(
+            this.repo, new Key.From(proj, "meta.json")
         );
-        new TestResource(String.format("storage/%s/-/%s-1.0.1.tgz", proj, proj))
-            .saveTo(
-                this.storage,
-                new Key.From(
-                    proj, "-", String.format("%s-1.0.1.tgz", proj)
-                )
+        new TestResource(String.format("storage/%s/-/%s-1.0.1.tgz", proj, proj)).saveTo(
+            this.repo, new Key.From(proj, "-", String.format("%s-1.0.1.tgz", proj))
         );
     }
 
     private boolean inNpmModule(final String proj, final String file) {
-        return this.storage.exists(
-            new Key.From("node_modules", proj, file)
-        ).join();
+        return this.data.exists(new Key.From("node_modules", proj, file)).join();
     }
 
     private String exec(final String... command) throws Exception {
