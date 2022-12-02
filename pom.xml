@@ -150,11 +150,6 @@ SOFTWARE.
       <artifactId>vertx-circuit-breaker</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.amihaiemil.web</groupId>
-      <artifactId>eo-yaml</artifactId>
-      <version>6.0.0</version>
-    </dependency>
-    <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-log4j12</artifactId>
       <scope>runtime</scope>
