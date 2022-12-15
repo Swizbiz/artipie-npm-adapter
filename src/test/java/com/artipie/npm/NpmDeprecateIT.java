@@ -7,6 +7,7 @@ package com.artipie.npm;
 import com.artipie.asto.Key;
 import com.artipie.asto.Storage;
 import com.artipie.asto.fs.FileStorage;
+import com.artipie.asto.memory.InMemoryStorage;
 import com.artipie.asto.test.TestResource;
 import com.artipie.http.slice.LoggingSlice;
 import com.artipie.npm.http.NpmSlice;
@@ -69,19 +70,25 @@ public final class NpmDeprecateIT {
     private GenericContainer<?> cntn;
 
     /**
-     * Test storage.
+     * Storage used as client-side data (for packages to publish).
      */
-    private Storage storage;
+    private Storage data;
+
+    /**
+     * Storage used for repository data.
+     */
+    private Storage repo;
 
     @BeforeEach
     void setUp() throws Exception {
-        this.storage = new FileStorage(this.tmp);
+        this.data = new FileStorage(this.tmp);
+        this.repo = new InMemoryStorage();
         this.vertx = Vertx.vertx();
         final int port = new RandomFreePort().value();
         this.url = String.format("http://host.testcontainers.internal:%d", port);
         this.server = new VertxSliceServer(
             this.vertx,
-            new LoggingSlice(new NpmSlice(new URL(this.url), this.storage)),
+            new LoggingSlice(new NpmSlice(new URL(this.url), this.repo)),
             port
         );
         this.server.start();
@@ -104,7 +111,7 @@ public final class NpmDeprecateIT {
     void addsDeprecation() throws Exception {
         final String pkg = "@hello/simple-npm-project";
         new TestResource("json/not_deprecated.json")
-            .saveTo(this.storage, new Key.From(pkg, "meta.json"));
+            .saveTo(this.repo, new Key.From(pkg, "meta.json"));
         final String msg = "Danger! Do not use!";
         MatcherAssert.assertThat(
             "Npm deprecate command was successful",
@@ -114,7 +121,7 @@ public final class NpmDeprecateIT {
         MatcherAssert.assertThat(
             "Metadata file was updates",
             new JsonFromPublisher(
-                this.storage.value(new Key.From(pkg, "meta.json")).join()
+                this.repo.value(new Key.From(pkg, "meta.json")).join()
             ).json().join(),
             new JsonHas(
                 "versions",
@@ -129,9 +136,9 @@ public final class NpmDeprecateIT {
     void installsWithDeprecationWarning() throws Exception {
         final String pkg = "@hello/simple-npm-project";
         new TestResource("json/deprecated.json")
-            .saveTo(this.storage, new Key.From(pkg, "meta.json"));
+            .saveTo(this.repo, new Key.From(pkg, "meta.json"));
         new TestResource(String.format("storage/%s/-/%s-1.0.1.tgz", pkg, pkg))
-            .saveTo(this.storage, new Key.From(pkg, "-", String.format("%s-1.0.1.tgz", pkg)));
+            .saveTo(this.repo, new Key.From(pkg, "-", String.format("%s-1.0.1.tgz", pkg)));
         MatcherAssert.assertThat(
             this.exec("npm", "install", pkg, "--registry", this.url).getStderr(),
             new StringContainsInOrder(
@@ -147,9 +154,9 @@ public final class NpmDeprecateIT {
         final String proj = "@hello/simple-npm-project";
         final String withdep = "project-with-simple-dependency";
         new TestResource("simple-npm-project")
-            .addFilesTo(this.storage, new Key.From(String.format("tmp/%s", proj)));
+            .addFilesTo(this.data, new Key.From(String.format("tmp/%s", proj)));
         new TestResource(withdep)
-            .addFilesTo(this.storage, new Key.From(String.format("tmp/%s", withdep)));
+            .addFilesTo(this.data, new Key.From(String.format("tmp/%s", withdep)));
         this.exec("npm", "publish", String.format("tmp/%s", proj), "--registry", this.url);
         this.exec("npm", "publish", String.format("tmp/%s", withdep), "--registry", this.url);
         final String msg = "Danger! Do not use!";

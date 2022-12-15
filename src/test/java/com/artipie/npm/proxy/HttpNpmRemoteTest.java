@@ -59,9 +59,11 @@ public final class HttpNpmRemoteTest {
     private HttpNpmRemote remote;
 
     @Test
-    public void loadsPackage() throws IOException, JSONException {
+    void loadsPackage() throws IOException, JSONException, InterruptedException {
         final String name = "asdas";
         final OffsetDateTime started = OffsetDateTime.now();
+        // @checkstyle MagicNumberCheck (1 line)
+        Thread.sleep(100);
         final NpmPackage pkg = this.remote.loadPackage(name).blockingGet();
         MatcherAssert.assertThat("Package is null", pkg != null);
         MatcherAssert.assertThat(
@@ -93,7 +95,7 @@ public final class HttpNpmRemoteTest {
     }
 
     @Test
-    public void loadsAsset() throws IOException {
+    void loadsAsset() throws IOException {
         final String path = "asdas/-/asdas-1.0.0.tgz";
         final Path tmp = Files.createTempFile("npm-asset-", "tmp");
         try {
@@ -127,13 +129,13 @@ public final class HttpNpmRemoteTest {
     }
 
     @Test
-    public void doesNotFindPackage() {
+    void doesNotFindPackage() {
         final Boolean empty = this.remote.loadPackage("not-found").isEmpty().blockingGet();
         MatcherAssert.assertThat("Unexpected package found", empty);
     }
 
     @Test
-    public void doesNotFindAsset() throws IOException {
+    void doesNotFindAsset() throws IOException {
         final Path tmp = Files.createTempFile("npm-asset-", "tmp");
         try {
             final Boolean empty = this.remote.loadAsset("not-found", tmp)

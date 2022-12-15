@@ -38,7 +38,7 @@ import org.testcontainers.containers.GenericContainer;
  * @since 0.1
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
-@SuppressWarnings("PMD.AvoidDuplicateLiterals")
+@SuppressWarnings({"PMD.AvoidDuplicateLiterals", "deprecation"})
 @DisabledOnOs(OS.WINDOWS)
 @org.testcontainers.junit.jupiter.Testcontainers
 public final class NpmProxyITCase {
