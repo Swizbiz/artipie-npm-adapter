@@ -10,9 +10,10 @@ import com.artipie.http.Response;
 import com.artipie.http.Slice;
 import com.artipie.http.auth.Action;
 import com.artipie.http.auth.Authentication;
-import com.artipie.http.auth.BasicAuthSlice;
+import com.artipie.http.auth.BearerAuthSlice;
 import com.artipie.http.auth.Permission;
 import com.artipie.http.auth.Permissions;
+import com.artipie.http.auth.TokenAuthentication;
 import com.artipie.http.rq.RqMethod;
 import com.artipie.http.rs.RsStatus;
 import com.artipie.http.rs.RsWithStatus;
@@ -25,6 +26,8 @@ import com.artipie.http.slice.SliceSimple;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import org.reactivestreams.Publisher;
 
 /**
@@ -38,9 +41,16 @@ import org.reactivestreams.Publisher;
  *  https://github.com/npm/registry
  *  https://docs.npmjs.com/cli/v8
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
+ * @checkstyle ClassFanOutComplexityCheck (500 lines)
  */
 @SuppressWarnings("PMD.ExcessiveMethodLength")
 public final class NpmSlice implements Slice {
+
+    /**
+     * Anonymous token auth for test purposes.
+     */
+    static final TokenAuthentication ANONYMOUS = tkn
+        -> CompletableFuture.completedFuture(Optional.of(new Authentication.User("anonymous")));
 
     /**
      * Header name `npm-command`.
@@ -63,7 +73,7 @@ public final class NpmSlice implements Slice {
      * @param storage Storage for package
      */
     public NpmSlice(final URL base, final Storage storage) {
-        this(base, storage, Permissions.FREE, Authentication.ANONYMOUS);
+        this(base, storage, Permissions.FREE, NpmSlice.ANONYMOUS);
     }
 
     /**
@@ -79,14 +89,14 @@ public final class NpmSlice implements Slice {
         final URL base,
         final Storage storage,
         final Permissions perms,
-        final Authentication auth) {
+        final TokenAuthentication auth) {
         this.route = new SliceRoute(
             new RtRulePath(
                 new RtRule.All(
                     new ByMethodsRule(RqMethod.GET),
                     new RtRule.ByPath("/npm")
                 ),
-                new BasicAuthSlice(
+                new BearerAuthSlice(
                     new SliceSimple(new RsWithStatus(RsStatus.OK)),
                     auth,
                     new Permission.ByName(perms, Action.Standard.READ)
@@ -97,7 +107,7 @@ public final class NpmSlice implements Slice {
                     new ByMethodsRule(RqMethod.PUT),
                     new RtRule.ByPath(AddDistTagsSlice.PTRN)
                 ),
-                new BasicAuthSlice(
+                new BearerAuthSlice(
                     new AddDistTagsSlice(storage),
                     auth,
                     new Permission.ByName(perms, Action.Standard.WRITE)
@@ -108,7 +118,7 @@ public final class NpmSlice implements Slice {
                     new ByMethodsRule(RqMethod.DELETE),
                     new RtRule.ByPath(AddDistTagsSlice.PTRN)
                 ),
-                new BasicAuthSlice(
+                new BearerAuthSlice(
                     new DeleteDistTagsSlice(storage),
                     auth,
                     new Permission.ByName(perms, Action.Standard.WRITE)
@@ -122,7 +132,7 @@ public final class NpmSlice implements Slice {
                         new RtRule.ByHeader(NpmSlice.REFERER, CliPublish.HEADER)
                     )
                 ),
-                new BasicAuthSlice(
+                new BearerAuthSlice(
                     new UploadSlice(new CliPublish(storage), storage),
                     auth,
                     new Permission.ByName(perms, Action.Standard.WRITE)
@@ -136,7 +146,7 @@ public final class NpmSlice implements Slice {
                         new RtRule.ByHeader(NpmSlice.REFERER, DeprecateSlice.HEADER)
                     )
                 ),
-                new BasicAuthSlice(
+                new BearerAuthSlice(
                     new DeprecateSlice(storage),
                     auth,
                     new Permission.ByName(perms, Action.Standard.WRITE)
@@ -150,7 +160,7 @@ public final class NpmSlice implements Slice {
                         new RtRule.ByHeader(NpmSlice.REFERER, UnpublishPutSlice.HEADER)
                     )
                 ),
-                new BasicAuthSlice(
+                new BearerAuthSlice(
                     new UnpublishPutSlice(storage),
                     auth,
                     new Permission.ByName(perms, Action.Standard.WRITE)
@@ -161,7 +171,7 @@ public final class NpmSlice implements Slice {
                     new ByMethodsRule(RqMethod.PUT),
                     new RtRule.ByPath(CurlPublish.PTRN)
                 ),
-                new BasicAuthSlice(
+                new BearerAuthSlice(
                     new UploadSlice(new CurlPublish(storage), storage),
                     auth,
                     new Permission.ByName(perms, Action.Standard.WRITE)
@@ -172,7 +182,7 @@ public final class NpmSlice implements Slice {
                     new ByMethodsRule(RqMethod.GET),
                     new RtRule.ByPath(".*/dist-tags$")
                 ),
-                new BasicAuthSlice(
+                new BearerAuthSlice(
                     new GetDistTagsSlice(storage),
                     auth,
                     new Permission.ByName(perms, Action.Standard.READ)
@@ -183,7 +193,7 @@ public final class NpmSlice implements Slice {
                     new ByMethodsRule(RqMethod.GET),
                     new RtRule.ByPath(".*(?<!\\.tgz)$")
                 ),
-                new BasicAuthSlice(
+                new BearerAuthSlice(
                     new DownloadPackageSlice(base, storage),
                     auth,
                     new Permission.ByName(perms, Action.Standard.READ)
@@ -194,7 +204,7 @@ public final class NpmSlice implements Slice {
                     new ByMethodsRule(RqMethod.GET),
                     new RtRule.ByPath(".*\\.tgz$")
                 ),
-                new BasicAuthSlice(
+                new BearerAuthSlice(
                     new SliceDownload(storage),
                     auth,
                     new Permission.ByName(perms, Action.Standard.READ)
@@ -205,7 +215,7 @@ public final class NpmSlice implements Slice {
                     new ByMethodsRule(RqMethod.DELETE),
                     new RtRule.ByPath(UnpublishForceSlice.PTRN)
                 ),
-                new BasicAuthSlice(
+                new BearerAuthSlice(
                     new UnpublishForceSlice(storage),
                     auth,
                     new Permission.ByName(perms, Action.Standard.DELETE)

@@ -40,12 +40,6 @@ import org.testcontainers.containers.GenericContainer;
  * Make sure the library is compatible with npm 8 cli tools.
  *
  * @since 0.1
- * @todo #339:30min Implement token auth for npm client. Npm client since version 7
- *  does not work anonymously, to publish any package you need to add user and get auth token.
- *  We need to support `npm login`, `npm adduser`, `npm logout` command and work with bearer auth
- *  token instead of basic auth. Related links: https://docs.npmjs.com/cli/v8/commands/npm-adduser
- *  https://docs.npmjs.com/cli/v8/commands/npm-logout
- *  https://docs.npmjs.com/cli/v8/using-npm/config#_auth
  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
  */
 @SuppressWarnings("PMD.AvoidDuplicateLiterals")
